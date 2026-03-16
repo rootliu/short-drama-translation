@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DramaOps MVP - Planning & Supervision</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="bg-orb bg-orb--a"></div>
+    <div class="bg-orb bg-orb--b"></div>
+    <div class="bg-grid"></div>
+
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">DO</div>
+          <div>
+            <div class="brand-title">DramaOps</div>
+            <div class="brand-subtitle">Planning + Supervision MVP</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item nav-item--active">Overview</button>
+          <button class="nav-item">Batch Planner</button>
+          <button class="nav-item">QA Supervision</button>
+          <button class="nav-item">Agents</button>
+          <button class="nav-item">Shared Memory</button>
+        </nav>
+
+        <div class="sidebar-card">
+          <div class="sidebar-title">Active Batch</div>
+          <div class="sidebar-value">Batch 04</div>
+          <div class="sidebar-meta">50 episodes · EN/JA</div>
+          <div class="sidebar-tags">
+            <span class="tag tag--green">On Track</span>
+            <span class="tag tag--amber">QA Watch</span>
+          </div>
+        </div>
+
+        <div class="sidebar-card">
+          <div class="sidebar-title">Today&apos;s Focus</div>
+          <ul class="sidebar-list">
+            <li>Lock S1 + S2 output for EP01-EP10</li>
+            <li>Calibrate emotion scale for EP08</li>
+            <li>Verify hook continuity EP12-EP15</li>
+          </ul>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Drama Translation Pipeline</div>
+            <h1>Planning & Supervision Board</h1>
+            <p class="subtitle">
+              Real-time orchestration for extraction, QA, and narrative control.
+            </p>
+          </div>
+          <div class="controls">
+            <select class="control-select">
+              <option>Batch 04 · 50 episodes</option>
+              <option>Batch 03 · 48 episodes</option>
+              <option>Batch 02 · 52 episodes</option>
+            </select>
+            <button class="btn btn--ghost">Pause</button>
+            <button class="btn btn--primary">Run Batch</button>
+          </div>
+        </header>
+
+        <section class="grid grid--2">
+          <div class="card" style="--delay: 0.05s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Pipeline Planner</div>
+                <div class="card-subtitle">DAG-aware execution plan</div>
+              </div>
+              <span class="chip chip--blue">ETA 3h 10m</span>
+            </div>
+            <div class="timeline">
+              <div class="timeline-item">
+                <div class="timeline-dot timeline-dot--green"></div>
+                <div>
+                  <div class="timeline-title">S1 · Dialogue Extraction</div>
+                  <div class="timeline-meta">72% complete · 18 running</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot timeline-dot--amber"></div>
+                <div>
+                  <div class="timeline-title">S2 · Character Resolution</div>
+                  <div class="timeline-meta">48% complete · 12 queued</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot timeline-dot--blue"></div>
+                <div>
+                  <div class="timeline-title">S3 · Emotion Labeling</div>
+                  <div class="timeline-meta">35% complete · waiting on S1</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div>
+                  <div class="timeline-title">S4 · Scene Description</div>
+                  <div class="timeline-meta">Sampling strategy locked</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div>
+                  <div class="timeline-title">S5-7 · Script, Emotion Arc, Hooks</div>
+                  <div class="timeline-meta">Queued for EP01-EP05</div>
+                </div>
+              </div>
+            </div>
+            <div class="mini-dag">
+              <div class="dag-node">S1</div>
+              <div class="dag-link"></div>
+              <div class="dag-node">S2</div>
+              <div class="dag-link"></div>
+              <div class="dag-node">S3</div>
+              <div class="dag-link"></div>
+              <div class="dag-node">S4</div>
+              <div class="dag-link"></div>
+              <div class="dag-node">S5</div>
+              <div class="dag-link"></div>
+              <div class="dag-node">S6</div>
+              <div class="dag-link"></div>
+              <div class="dag-node">S7</div>
+            </div>
+          </div>
+
+          <div class="card card--supervise" style="--delay: 0.15s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Supervision & QA</div>
+                <div class="card-subtitle">Risk signals and quality gates</div>
+              </div>
+              <span class="chip chip--amber">3 alerts</span>
+            </div>
+            <div class="alerts">
+              <div class="alert">
+                <div class="alert-tag">Emotion Drift</div>
+                <div class="alert-text">
+                  EP08 emotion scale deviates +2.1 vs calibration set.
+                </div>
+              </div>
+              <div class="alert">
+                <div class="alert-tag">Hook Break</div>
+                <div class="alert-text">
+                  EP12-EP13 hook continuity score dropped to 0.46.
+                </div>
+              </div>
+              <div class="alert">
+                <div class="alert-tag">ASR Noise</div>
+                <div class="alert-text">
+                  EP04 background music spikes WER above 12%.
+                </div>
+              </div>
+            </div>
+            <div class="gates">
+              <div class="gate">
+                <div class="gate-title">Gate A · S1/S2 lock</div>
+                <div class="progress">
+                  <div class="progress-bar" style="width: 78%"></div>
+                </div>
+                <div class="gate-meta">39/50 episodes</div>
+              </div>
+              <div class="gate">
+                <div class="gate-title">Gate B · Emotion alignment</div>
+                <div class="progress">
+                  <div class="progress-bar progress-bar--amber" style="width: 52%"></div>
+                </div>
+                <div class="gate-meta">26/50 episodes</div>
+              </div>
+              <div class="gate">
+                <div class="gate-title">Gate C · Hook continuity</div>
+                <div class="progress">
+                  <div class="progress-bar progress-bar--blue" style="width: 44%"></div>
+                </div>
+                <div class="gate-meta">22/50 episodes</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid grid--3">
+          <div class="card" style="--delay: 0.2s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Task Queue</div>
+                <div class="card-subtitle">Filtered by status</div>
+              </div>
+              <div class="filters">
+                <button class="filter-btn filter-btn--active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="running">Running</button>
+                <button class="filter-btn" data-filter="queued">Queued</button>
+                <button class="filter-btn" data-filter="blocked">Blocked</button>
+              </div>
+            </div>
+            <div class="table">
+              <div class="table-head">
+                <span>Task</span>
+                <span>Agent</span>
+                <span>Status</span>
+                <span>ETA</span>
+              </div>
+              <div class="table-body" id="taskTable"></div>
+            </div>
+          </div>
+
+          <div class="card" style="--delay: 0.28s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Agent Health</div>
+                <div class="card-subtitle">Capacity and load</div>
+              </div>
+              <span class="chip chip--green">5 healthy</span>
+            </div>
+            <div class="agent-list" id="agentList"></div>
+          </div>
+
+          <div class="card" style="--delay: 0.35s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Resource & Cost</div>
+                <div class="card-subtitle">GPU and API spend</div>
+              </div>
+              <span class="chip chip--blue">Budget 72%</span>
+            </div>
+            <div class="resource">
+              <div class="resource-row">
+                <div class="resource-label">GPU Utilization</div>
+                <div class="progress">
+                  <div class="progress-bar progress-bar--blue" style="width: 64%"></div>
+                </div>
+                <div class="resource-meta">5/8 nodes</div>
+              </div>
+              <div class="resource-row">
+                <div class="resource-label">API Spend</div>
+                <div class="progress">
+                  <div class="progress-bar progress-bar--green" style="width: 58%"></div>
+                </div>
+                <div class="resource-meta">$94 / $160</div>
+              </div>
+              <div class="resource-row">
+                <div class="resource-label">Queue Depth</div>
+                <div class="progress">
+                  <div class="progress-bar progress-bar--amber" style="width: 42%"></div>
+                </div>
+                <div class="resource-meta">38 tasks</div>
+              </div>
+            </div>
+            <div class="forecast">
+              <div class="forecast-title">Forecast</div>
+              <div class="forecast-body">
+                Completion predicted at 18:40 · cost delta +6%.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid grid--2">
+          <div class="card" style="--delay: 0.42s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Emotion & Hook Monitor</div>
+                <div class="card-subtitle">Batch-level narrative signals</div>
+              </div>
+              <span class="chip chip--blue">Live</span>
+            </div>
+            <div class="chart">
+              <svg viewBox="0 0 320 140" role="img" aria-label="Emotion arc chart">
+                <defs>
+                  <linearGradient id="emotionLine" x1="0" x2="1" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#f15a3b" />
+                    <stop offset="100%" stop-color="#0ea5a5" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M10 110 C 40 40, 80 30, 120 70 S 200 130, 250 80 S 310 20, 310 20"
+                  fill="none"
+                  stroke="url(#emotionLine)"
+                  stroke-width="4"
+                />
+                <circle cx="120" cy="70" r="5" fill="#0ea5a5" />
+                <circle cx="250" cy="80" r="5" fill="#f15a3b" />
+              </svg>
+              <div class="chart-legend">
+                <div><span class="legend-dot legend-dot--teal"></span>Emotion peak</div>
+                <div><span class="legend-dot legend-dot--coral"></span>Hook reversal</div>
+              </div>
+            </div>
+            <div class="hook-list" id="hookList"></div>
+          </div>
+
+          <div class="card" style="--delay: 0.5s;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Episode Drilldown</div>
+                <div class="card-subtitle">Select an episode to review</div>
+              </div>
+              <select class="control-select control-select--small" id="episodeSelect"></select>
+            </div>
+            <div class="episode-panel" id="episodePanel"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
