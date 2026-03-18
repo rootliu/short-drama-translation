@@ -7,7 +7,9 @@ import {
 import {
   PlayCircleOutlined, CheckCircleOutlined, SyncOutlined,
   ClockCircleOutlined, EyeOutlined, WarningOutlined,
+  UploadOutlined, InboxOutlined, RobotOutlined, DownloadOutlined,
 } from '@ant-design/icons'
+import Dragger from 'antd/es/upload/Dragger'
 import ReactEChartsCore from 'echarts-for-react'
 import { api, createEventSource } from '../services/api'
 import type { Project, BatchInfo, EpisodeListItem, ProjectStats, PipelineLog } from '../types'
@@ -35,6 +37,7 @@ export default function ProjectDetail() {
   const [logs, setLogs] = useState<PipelineLog[]>([])
   const [selectedBatch, setSelectedBatch] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sysStatus, setSysStatus] = useState<any>(null)
   const esRef = useRef<EventSource | null>(null)
 
   const load = useCallback(async () => {
@@ -57,6 +60,7 @@ export default function ProjectDetail() {
   }, [projectId, selectedBatch])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { api.getSystemStatus().then(setSysStatus).catch(() => {}) }, [])
 
   // Load episodes when batch is selected
   useEffect(() => {
@@ -203,6 +207,9 @@ export default function ProjectDetail() {
                   <Tag>{project.total_episodes} episodes</Tag>
                   <Tag>Batch size: {project.batch_size}</Tag>
                   <Tag color="blue">Target: {project.target_language.toUpperCase()}</Tag>
+                  <Button icon={<DownloadOutlined />} href={api.exportMarkdown(projectId)} target="_blank">
+                    Export MD
+                  </Button>
                   <Tag color={project.status === 'processing' ? 'processing' : project.status === 'completed' ? 'success' : 'default'}>
                     {project.status.toUpperCase()}
                   </Tag>
@@ -289,6 +296,80 @@ export default function ProjectDetail() {
                     </Col>
                   </Row>
                 ) : <Typography.Text type="secondary">Process episodes to see analysis.</Typography.Text>,
+              },
+              {
+                key: 'upload',
+                label: <span><UploadOutlined /> Upload Files</span>,
+                children: (
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Card title="Batch Upload Subtitles (SRT/ASS)" size="small">
+                        <Dragger
+                          multiple
+                          accept=".srt,.ass,.ssa,.vtt"
+                          customRequest={async ({ file, onSuccess, onError }) => {
+                            // Collect files for batch upload
+                            try {
+                              const result = await api.batchUploadSubtitles(projectId, [file as File])
+                              onSuccess?.(result)
+                              message.success(`Uploaded: ${(file as File).name}`)
+                              load()
+                              if (selectedBatch) api.getBatchEpisodes(projectId, selectedBatch).then(setEpisodes)
+                            } catch (e: any) {
+                              onError?.(e)
+                              message.error(e.message)
+                            }
+                          }}
+                          showUploadList
+                        >
+                          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                          <p className="ant-upload-text">Drop SRT/ASS files here</p>
+                          <p className="ant-upload-hint">Files are matched to episodes by filename order</p>
+                        </Dragger>
+                      </Card>
+                    </Col>
+                    <Col span={12}>
+                      <Card title="Upload Video (for ASR)" size="small">
+                        <Dragger
+                          multiple
+                          accept=".mp4,.mkv,.avi,.mov,.webm"
+                          customRequest={async ({ file, onSuccess, onError }) => {
+                            try {
+                              const result = await api.batchUploadSubtitles(projectId, [file as File])
+                              onSuccess?.(result)
+                              message.success(`Video uploaded: ${(file as File).name}`)
+                              load()
+                            } catch (e: any) {
+                              onError?.(e)
+                              message.error(e.message)
+                            }
+                          }}
+                          showUploadList
+                        >
+                          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                          <p className="ant-upload-text">Drop video files here</p>
+                          <p className="ant-upload-hint">Video will be processed with ASR (Whisper)</p>
+                        </Dragger>
+                      </Card>
+                    </Col>
+                    <Col span={24} style={{ marginTop: 16 }}>
+                      <Card size="small">
+                        <Space>
+                          <RobotOutlined />
+                          <Typography.Text>
+                            LLM Status: {sysStatus?.llm_available ?
+                              <Tag color="success">Gemini Connected</Tag> :
+                              <Tag color="warning">Mock Mode (no API key)</Tag>
+                            }
+                          </Typography.Text>
+                          <Typography.Text type="secondary">
+                            Supported: {sysStatus?.supported_formats?.subtitle?.join(', ')}
+                          </Typography.Text>
+                        </Space>
+                      </Card>
+                    </Col>
+                  </Row>
+                ),
               },
               {
                 key: 'logs',

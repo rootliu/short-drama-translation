@@ -3,7 +3,7 @@
 import asyncio
 import datetime
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,6 +12,9 @@ from sqlalchemy import func
 
 from database import init_db, get_db, Project, Batch, Episode, CharacterDB, PipelineLog, ProjectStatus, StageStatus
 from pipeline import run_batch, event_stream, STAGE_CONFIG
+from file_manager import save_upload, read_subtitle_text, ALLOWED_SUBTITLE_EXT, ALLOWED_VIDEO_EXT
+from srt_parser import parse_subtitle_file, get_subtitle_stats
+from llm_service import is_llm_available
 
 app = FastAPI(title="Short Drama Translation Pipeline", version="0.1.0")
 
@@ -272,6 +275,179 @@ def get_project_stats(project_id: int, db: Session = Depends(get_db)):
         "arc_type_distribution": arc_types,
         "hook_type_distribution": hook_types,
         "qa_pass_rate": round(qa_pass_count / n * 100, 1) if n > 0 else 0,
+    }
+
+
+# === File Upload ===
+
+@app.post("/api/projects/{project_id}/episodes/{episode_id}/upload")
+async def upload_episode_file(
+    project_id: int,
+    episode_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        raise HTTPException(404, "Episode not found")
+
+    content = await file.read()
+    try:
+        meta = save_upload(project_id, file.filename, content)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    episode.source_file = meta["path"]
+    episode.source_type = meta["file_type"]
+
+    # If subtitle file, parse immediately
+    if meta["file_type"] == "subtitle":
+        text = read_subtitle_text(meta["path"])
+        lines = parse_subtitle_file(text, file.filename)
+        stats = get_subtitle_stats(lines)
+        episode.raw_subtitles = lines
+        episode.subtitle_data = {
+            **stats,
+            "asr_match_rate": 1.0,
+            "dialogues": lines,
+        }
+        episode.s1_status = StageStatus.COMPLETED
+        episode.title = episode.title or f"EP{episode.episode_number:03d}"
+        episode.duration_seconds = stats["duration"]
+
+    db.commit()
+    return {
+        "message": "File uploaded successfully",
+        "file": meta,
+        "parsed_lines": len(episode.raw_subtitles) if episode.raw_subtitles else 0,
+    }
+
+
+@app.post("/api/projects/{project_id}/batch-upload")
+async def batch_upload_subtitles(
+    project_id: int,
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload multiple subtitle files at once. Files are matched to episodes by order or filename."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Get all episodes for this project, ordered by episode number
+    batches = db.query(Batch).filter(Batch.project_id == project_id).all()
+    batch_ids = [b.id for b in batches]
+    episodes = db.query(Episode).filter(
+        Episode.batch_id.in_(batch_ids)
+    ).order_by(Episode.episode_number).all()
+
+    results = []
+    for i, file in enumerate(sorted(files, key=lambda f: f.filename)):
+        if i >= len(episodes):
+            break
+        ep = episodes[i]
+        content = await file.read()
+        try:
+            meta = save_upload(project_id, file.filename, content)
+        except ValueError:
+            results.append({"filename": file.filename, "status": "error", "reason": "unsupported format"})
+            continue
+
+        ep.source_file = meta["path"]
+        ep.source_type = meta["file_type"]
+
+        if meta["file_type"] == "subtitle":
+            text = read_subtitle_text(meta["path"])
+            lines = parse_subtitle_file(text, file.filename)
+            stats = get_subtitle_stats(lines)
+            ep.raw_subtitles = lines
+            ep.subtitle_data = {**stats, "asr_match_rate": 1.0, "dialogues": lines}
+            ep.s1_status = StageStatus.COMPLETED
+            ep.title = ep.title or f"EP{ep.episode_number:03d}"
+            ep.duration_seconds = stats["duration"]
+
+        results.append({"filename": file.filename, "episode": ep.episode_number, "status": "ok", "lines": len(lines) if meta["file_type"] == "subtitle" else 0})
+
+    db.commit()
+    return {"uploaded": len(results), "results": results}
+
+
+# === Export ===
+
+@app.get("/api/projects/{project_id}/export")
+def export_project_markdown(project_id: int, db: Session = Depends(get_db)):
+    """Export project as a Markdown script document."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    batches = db.query(Batch).filter(Batch.project_id == project_id).order_by(Batch.batch_number).all()
+    batch_ids = [b.id for b in batches]
+    episodes = db.query(Episode).filter(
+        Episode.batch_id.in_(batch_ids),
+        Episode.status == StageStatus.COMPLETED,
+    ).order_by(Episode.episode_number).all()
+
+    characters = db.query(CharacterDB).filter(CharacterDB.project_id == project_id).all()
+
+    lines = []
+    lines.append(f"# {project.name}\n")
+    lines.append(f"> {project.description}\n")
+    lines.append(f"> Target: {project.target_language.upper()} | Episodes: {len(episodes)} completed\n")
+    lines.append("---\n")
+
+    if characters:
+        lines.append("## Characters\n")
+        for c in characters:
+            aliases = ", ".join(c.aliases) if c.aliases else ""
+            lines.append(f"- **{c.name}** ({aliases}): {c.description}")
+        lines.append("")
+
+    for ep in episodes:
+        lines.append(f"## Episode {ep.episode_number} — {ep.title or 'Untitled'}\n")
+        if ep.summary:
+            lines.append(f"*{ep.summary}*\n")
+        if ep.emotion_analysis:
+            ea = ep.emotion_analysis
+            lines.append(f"**Arc**: {ea.get('arc_type', '?')} | **Peak**: {ea.get('peak_time', '?')} | **Avg Intensity**: {ea.get('average_intensity', '?')}/10\n")
+        if ep.hooks:
+            h = ep.hooks
+            lines.append(f"**Hook** [{h.get('type', '?')}]: {h.get('content', '')} (attraction: {h.get('attraction_score', '?')}/10)\n")
+            if h.get('translation_risk', 'LOW') != 'LOW':
+                lines.append(f"⚠️ Translation Risk: {h.get('translation_risk')} — {h.get('risk_reason', '')}\n")
+        if ep.script:
+            lines.append("### Script\n")
+            lines.append(f"```\n{ep.script}\n```\n")
+        if ep.qa_result:
+            qa = ep.qa_result
+            status = "✅ PASSED" if qa.get("passed") else "❌ NEEDS REVIEW"
+            lines.append(f"**QA**: {status} (score: {qa.get('overall_score', '?')}/10)")
+            for issue in qa.get("issues", []):
+                lines.append(f"  - ⚠️ {issue}")
+            lines.append("")
+        lines.append("---\n")
+
+    md_content = "\n".join(lines)
+    from urllib.parse import quote
+    safe_name = quote(f"{project.name}_script.md")
+    return StreamingResponse(
+        iter([md_content]),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
+    )
+
+
+# === LLM Status ===
+
+@app.get("/api/system/status")
+def system_status():
+    return {
+        "llm_available": is_llm_available(),
+        "supported_formats": {
+            "subtitle": list(ALLOWED_SUBTITLE_EXT),
+            "video": list(ALLOWED_VIDEO_EXT),
+        },
+        "pipeline_stages": list(STAGE_CONFIG.keys()),
     }
 
 

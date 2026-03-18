@@ -62,6 +62,10 @@ class Episode(Base):
     duration_seconds = Column(Integer, default=0)
     status = Column(String, default=StageStatus.PENDING)
     current_stage = Column(String, default="")
+    # File references
+    source_type = Column(String, default="")  # "srt", "video", ""
+    source_file = Column(String, default="")  # path to uploaded file
+    raw_subtitles = Column(JSON, nullable=True)  # parsed subtitle lines from SRT/ASR
     s1_status = Column(String, default=StageStatus.PENDING)
     s2_status = Column(String, default=StageStatus.PENDING)
     s3_status = Column(String, default=StageStatus.PENDING)

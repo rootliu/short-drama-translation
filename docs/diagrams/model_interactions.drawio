@@ -1,0 +1,241 @@
+<mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1200" math="0" shadow="0">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+
+    <!-- Title -->
+    <mxCell id="t1" value="Model Interactions: API + Local Fine-tuned Models per Round" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+      <mxGeometry x="300" y="20" width="550" height="35" as="geometry"/>
+    </mxCell>
+
+    <!-- VIDEO INPUT (center top) -->
+    <mxCell id="video" value="Chinese Drama Video&#xa;+ SRT Subtitles" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+      <mxGeometry x="500" y="70" width="200" height="50" as="geometry"/>
+    </mxCell>
+
+    <!-- ROUND 1 SWIMLANE -->
+    <mxCell id="sw1" value="Round 1: ASR Anchoring" style="swimlane;startSize=25;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;rounded=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="150" width="1100" height="130" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r1_demucs" value="Demucs v4&#xa;(vocal separation)" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="sw1">
+      <mxGeometry x="30" y="40" width="130" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="r1_funasr" value="FunASR Paraformer&#xa;+ CAM++ + VAD + Punc&#xa;CER 1.95%" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;" vertex="1" parent="sw1">
+      <mxGeometry x="220" y="35" width="180" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="r1_ts" value="Precise Timestamps&#xa;(+/- 0.1s)" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw1">
+      <mxGeometry x="470" y="35" width="120" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r1_spk" value="Speaker Clusters&#xa;SPK_01, SPK_02..." style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw1">
+      <mxGeometry x="470" y="78" width="120" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r1_srt" value="Existing SRT&#xa;(text baseline)" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="sw1">
+      <mxGeometry x="640" y="35" width="110" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r1_out" value="Script Skeleton&#xa;(Markdown)" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;" vertex="1" parent="sw1">
+      <mxGeometry x="830" y="40" width="140" height="40" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="er1_1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r1_demucs" target="r1_funasr" parent="sw1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er1_2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r1_funasr" target="r1_ts" parent="sw1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er1_3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r1_funasr" target="r1_spk" parent="sw1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er1_4" value="merge" style="edgeStyle=orthogonalEdgeStyle;dashed=1;fontSize=9;" edge="1" source="r1_srt" target="r1_out" parent="sw1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er1_5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r1_ts" target="r1_out" parent="sw1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- ROUND 2 SWIMLANE -->
+    <mxCell id="sw2" value="Round 2: Multimodal LLM Video Analysis (ASR-Anchored)" style="swimlane;startSize=25;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=12;rounded=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="310" width="1100" height="140" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r2_gemini" value="Gemini 3.1 Pro&#xa;(video + R1 results)&#xa;PRIMARY" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;" vertex="1" parent="sw2">
+      <mxGeometry x="30" y="40" width="150" height="55" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_gpt" value="GPT-5.4&#xa;FALLBACK 1" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;dashed=1;" vertex="1" parent="sw2">
+      <mxGeometry x="30" y="100" width="70" height="30" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_kimi" value="Kimi K2.5&#xa;FALLBACK 2" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;dashed=1;" vertex="1" parent="sw2">
+      <mxGeometry x="110" y="100" width="70" height="30" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r2_o1" value="ASR Text&#xa;Correction" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw2">
+      <mxGeometry x="250" y="40" width="100" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_o2" value="Character&#xa;Names" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw2">
+      <mxGeometry x="370" y="40" width="100" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_o3" value="Surface&#xa;Emotion" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw2">
+      <mxGeometry x="490" y="40" width="100" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_o4" value="Scene&#xa;Description" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw2">
+      <mxGeometry x="610" y="40" width="100" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_o5" value="Hook&#xa;Detection" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="sw2">
+      <mxGeometry x="730" y="40" width="100" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r2_out" value="Enriched Script&#xa;(+ JSON blocks)" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;" vertex="1" parent="sw2">
+      <mxGeometry x="900" y="45" width="140" height="40" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="er2_1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r2_gemini" target="r2_o1" parent="sw2"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er2_2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r2_gemini" target="r2_o2" parent="sw2"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er2_3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r2_gemini" target="r2_o3" parent="sw2"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er2_4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r2_gemini" target="r2_o4" parent="sw2"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er2_5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r2_gemini" target="r2_o5" parent="sw2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- ROUND 3 SWIMLANE -->
+    <mxCell id="sw3" value="Round 3: Character Alignment (4-Channel Cross-Validation)" style="swimlane;startSize=25;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;rounded=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="480" width="1100" height="140" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r3_c1" value="Ch1: Gemini&#xa;Visual Recognition&#xa;(face + subtitle)" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;fontStyle=1;" vertex="1" parent="sw3">
+      <mxGeometry x="30" y="40" width="130" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="r3_c2" value="Ch2: CAM++&#xa;Voice Embeddings&#xa;(fine-tuned)" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;fontStyle=1;" vertex="1" parent="sw3">
+      <mxGeometry x="180" y="40" width="130" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="r3_c3" value="Ch3: hanlp NER&#xa;Name/Title&#xa;Extraction" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;fontStyle=1;" vertex="1" parent="sw3">
+      <mxGeometry x="330" y="40" width="130" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="r3_c4" value="Ch4: LLM&#xa;Relationship&#xa;Reasoning" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=1;" vertex="1" parent="sw3">
+      <mxGeometry x="480" y="40" width="130" height="50" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r3_xv" value="Cross-Validation&#xa;Fusion" style="rhombus;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=10;" vertex="1" parent="sw3">
+      <mxGeometry x="670" y="35" width="120" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="r3_reg" value="character_registry.json&#xa;{name, title, aliases[],&#xa;speaker_id, relationships}" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=9;" vertex="1" parent="sw3">
+      <mxGeometry x="860" y="35" width="190" height="55" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="er3_1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r3_c1" target="r3_xv" parent="sw3"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er3_2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r3_c2" target="r3_xv" parent="sw3"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er3_3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r3_c3" target="r3_xv" parent="sw3"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er3_4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r3_c4" target="r3_xv" parent="sw3"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er3_5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r3_xv" target="r3_reg" parent="sw3"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- ROUND 4 SWIMLANE -->
+    <mxCell id="sw4" value="Round 4: ABSA 5-Dimension Emotion Deep Analysis" style="swimlane;startSize=25;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=12;rounded=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="650" width="1100" height="165" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r4_p1" value="Pass 1: Claude Opus 4.6&#xa;Inner emotion&#xa;Emotion target" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="30" y="40" width="170" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="r4_p2" value="Pass 2: Claude Opus 4.6&#xa;Tone style&#xa;Surface-inner contrast" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="30" y="105" width="170" height="50" as="geometry"/>
+    </mxCell>
+    <mxCell id="r4_ev" value="emotion2vec+&#xa;(fine-tuned)&#xa;Audio cross-check" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="250" y="65" width="130" height="50" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r4_d1" value="Surface" style="ellipse;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="440" y="35" width="70" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r4_d2" value="Inner" style="ellipse;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="530" y="35" width="70" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r4_d3" value="Target" style="ellipse;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="620" y="35" width="70" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r4_d4" value="Tone" style="ellipse;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="710" y="35" width="70" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="r4_d5" value="Intensity" style="ellipse;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;fontStyle=1;" vertex="1" parent="sw4">
+      <mxGeometry x="800" y="35" width="70" height="35" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="r4_out" value="Complete Script&#xa;(ABSA annotated)" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;" vertex="1" parent="sw4">
+      <mxGeometry x="910" y="50" width="150" height="40" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="er4_1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r4_p1" target="r4_p2" parent="sw4"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er4_6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r4_p1" target="r4_d2" parent="sw4"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er4_7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r4_p1" target="r4_d3" parent="sw4"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er4_8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="r4_p2" target="r4_d4" parent="sw4"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="er4_9" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="r4_ev" target="r4_d5" parent="sw4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- QA SWIMLANE -->
+    <mxCell id="sw5" value="Post-Translation QA: Xin-Da-Ya (Faithfulness-Expressiveness-Elegance)" style="swimlane;startSize=25;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;rounded=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="850" width="1100" height="140" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="qa_in1" value="Original Script&#xa;(with ABSA)" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="30" y="40" width="110" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="qa_in2" value="English&#xa;Translation" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="30" y="90" width="110" height="40" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="qa_dm" value="Distilled QA Model&#xa;(from LLM + 1000 human)&#xa;Outsource Benchmark" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="200" y="50" width="180" height="55" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="qa_x" value="XIN&#xa;Faithfulness&#xa;Semantic fidelity" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="440" y="35" width="110" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="qa_d" value="DA&#xa;Expressiveness&#xa;ABSA vs tone" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="570" y="35" width="110" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="qa_y" value="YA&#xa;Elegance&#xa;Natural + cultural" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="700" y="35" width="110" height="45" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="qa_llm" value="LLM Pre-screen&#xa;Flag low-score lines" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" vertex="1" parent="sw5">
+      <mxGeometry x="560" y="93" width="130" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="qa_hr" value="Human Review&#xa;(problem rows only)" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;fontStyle=1;" vertex="1" parent="sw5">
+      <mxGeometry x="730" y="93" width="130" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="qa_report" value="QA Report&#xa;+ Acceptance Score" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=9;" vertex="1" parent="sw5">
+      <mxGeometry x="920" y="55" width="140" height="40" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="eqa_1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_in1" target="qa_dm" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="eqa_2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_in2" target="qa_dm" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="eqa_3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_dm" target="qa_x" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="eqa_4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_dm" target="qa_d" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="eqa_5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_dm" target="qa_y" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="eqa_6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_llm" target="qa_hr" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="eqa_7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="qa_hr" target="qa_report" parent="sw5"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- Inter-round flow arrows -->
+    <mxCell id="flow1" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=2;strokeColor=#1a5276;" edge="1" source="video" target="sw1" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- Legend -->
+    <mxCell id="leg_title" value="Legend" style="text;html=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="1020" width="60" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg1" value="" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+      <mxGeometry x="50" y="1045" width="20" height="15" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg1t" value="Multimodal API (Gemini/GPT/Kimi/Claude)" style="text;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="75" y="1043" width="260" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg2" value="" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+      <mxGeometry x="50" y="1065" width="20" height="15" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg2t" value="Local Model (pre-trained or fine-tuned)" style="text;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="75" y="1063" width="260" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg3" value="" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+      <mxGeometry x="370" y="1045" width="20" height="15" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg3t" value="Output / Result" style="text;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="395" y="1043" width="120" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg4" value="" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+      <mxGeometry x="370" y="1065" width="20" height="15" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg4t" value="ABSA Dimension" style="text;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="395" y="1063" width="120" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg5" value="" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+      <mxGeometry x="540" y="1045" width="20" height="15" as="geometry"/>
+    </mxCell>
+    <mxCell id="leg5t" value="QA Evaluation" style="text;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="565" y="1043" width="120" height="20" as="geometry"/>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

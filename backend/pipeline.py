@@ -1,8 +1,9 @@
-"""Pipeline orchestration with mock processing and SSE progress updates."""
+"""Pipeline orchestration with real AI + mock fallback and SSE progress updates."""
 
 import asyncio
 import datetime
 import json
+import logging
 import random
 from typing import AsyncGenerator
 from sqlalchemy.orm import Session
@@ -12,6 +13,13 @@ from database import (
     ProjectStatus, StageStatus
 )
 from mock_data import generate_episode_data, CHARACTERS
+from llm_service import is_llm_available
+from stages import (
+    ai_s2_character_id, ai_s3_emotion, ai_s5_translate,
+    ai_s6_emotion_analysis, ai_s7_hook_analysis, ai_qa_review,
+)
+
+logger = logging.getLogger(__name__)
 
 # Global event queues for SSE
 _event_queues: dict[int, asyncio.Queue] = {}
@@ -60,9 +68,10 @@ STAGE_CONFIG = {
 
 
 async def process_stage(db: Session, episode: Episode, stage: str, project_id: int, mock_data: dict):
-    """Simulate processing a single stage for an episode."""
+    """Process a single stage: try real AI first, fallback to mock."""
     config = STAGE_CONFIG[stage]
     status_field = f"{stage}_status"
+    use_ai = is_llm_available()
 
     # Set running
     setattr(episode, status_field, StageStatus.RUNNING)
@@ -75,44 +84,116 @@ async def process_stage(db: Session, episode: Episode, stage: str, project_id: i
         "stage": stage,
         "stage_name": config["name"],
         "status": "running",
+        "mode": "ai" if use_ai else "mock",
     })
 
-    # Simulate processing time
-    duration = random.uniform(*config["duration"])
-    steps = random.randint(3, 6)
-    for step in range(steps):
-        await asyncio.sleep(duration / steps)
-        progress = round((step + 1) / steps * 100)
-        await push_event(project_id, "stage_progress", {
-            "episode_id": episode.id,
-            "episode_number": episode.episode_number,
-            "stage": stage,
-            "progress": progress,
-        })
+    # Get the dialogue data for AI stages
+    dialogues = []
+    if episode.raw_subtitles:
+        dialogues = episode.raw_subtitles
+    elif episode.subtitle_data and "dialogues" in (episode.subtitle_data or {}):
+        dialogues = episode.subtitle_data["dialogues"]
 
-    # Apply mock results
+    # Get project target language
+    project = db.query(Project).filter(Project.id == project_id).first()
+    target_lang = project.target_language if project else "en"
+
+    ai_result = None
+
+    if use_ai and stage != "s1":  # S1 is handled by upload/parser, skip AI for it
+        try:
+            if stage == "s2" and dialogues:
+                ai_result = await ai_s2_character_id(dialogues)
+            elif stage == "s3" and dialogues:
+                ai_result = await ai_s3_emotion(dialogues)
+            elif stage == "s5" and dialogues:
+                ai_result = await ai_s5_translate(
+                    dialogues, episode.characters or [], episode.emotions or {}, target_lang
+                )
+            elif stage == "s6":
+                ai_result = await ai_s6_emotion_analysis(dialogues, episode.emotions or {})
+            elif stage == "s7":
+                script_data = {"summary": episode.summary} if episode.summary else {}
+                ai_result = await ai_s7_hook_analysis(dialogues, script_data)
+            elif stage == "qa":
+                ep_data = {
+                    "dialogues": dialogues,
+                    "characters": episode.characters or [],
+                    "emotion_analysis": episode.emotion_analysis or {},
+                    "hooks": episode.hooks or {},
+                    "script": episode.script,
+                }
+                ai_result = await ai_qa_review(ep_data)
+        except Exception as e:
+            logger.error(f"AI stage {stage} failed for EP{episode.episode_number}: {e}")
+            ai_result = None
+
+    # Send progress events (real AI is instant-ish, but we still show progress)
+    if ai_result is None:
+        # Mock mode: simulate processing time
+        duration = random.uniform(*config["duration"])
+        steps = random.randint(3, 6)
+        for step in range(steps):
+            await asyncio.sleep(duration / steps)
+            progress = round((step + 1) / steps * 100)
+            await push_event(project_id, "stage_progress", {
+                "episode_id": episode.id,
+                "episode_number": episode.episode_number,
+                "stage": stage,
+                "progress": progress,
+            })
+
+    # Apply results
+    mode = "mock"
     if stage == "s1":
-        episode.subtitle_data = mock_data["subtitle_data"]
+        # S1: if episode already has subtitle_data from upload, keep it; otherwise mock
+        if not episode.subtitle_data:
+            episode.subtitle_data = mock_data["subtitle_data"]
     elif stage == "s2":
-        episode.characters = mock_data["characters"]
+        if ai_result:
+            episode.characters = ai_result if isinstance(ai_result, list) else ai_result.get("characters", [])
+            mode = "ai"
+        else:
+            episode.characters = mock_data["characters"]
     elif stage == "s3":
-        episode.emotions = mock_data["emotions"]
+        if ai_result:
+            episode.emotions = ai_result
+            mode = "ai"
+        else:
+            episode.emotions = mock_data["emotions"]
     elif stage == "s5":
-        episode.script = mock_data["script"]
-        episode.summary = mock_data["summary"]
+        if ai_result:
+            episode.script = ai_result.get("script", "")
+            episode.summary = ai_result.get("summary", "")
+            mode = "ai"
+        else:
+            episode.script = mock_data["script"]
+            episode.summary = mock_data["summary"]
     elif stage == "s6":
-        episode.emotion_analysis = mock_data["emotion_analysis"]
+        if ai_result:
+            episode.emotion_analysis = ai_result
+            mode = "ai"
+        else:
+            episode.emotion_analysis = mock_data["emotion_analysis"]
     elif stage == "s7":
-        episode.hooks = mock_data["hooks"]
+        if ai_result:
+            episode.hooks = ai_result
+            mode = "ai"
+        else:
+            episode.hooks = mock_data["hooks"]
     elif stage == "qa":
-        episode.qa_result = mock_data["qa_result"]
+        if ai_result:
+            episode.qa_result = ai_result
+            mode = "ai"
+        else:
+            episode.qa_result = mock_data["qa_result"]
 
     # Set completed
     setattr(episode, status_field, StageStatus.COMPLETED)
     db.commit()
 
     add_log(db, project_id, stage,
-            f"EP{episode.episode_number:03d} {config['name']} completed",
+            f"EP{episode.episode_number:03d} {config['name']} completed [{mode}]",
             episode_id=episode.id)
 
     await push_event(project_id, "stage_update", {
@@ -121,6 +202,7 @@ async def process_stage(db: Session, episode: Episode, stage: str, project_id: i
         "stage": stage,
         "stage_name": config["name"],
         "status": "completed",
+        "mode": mode,
     })
 
 
