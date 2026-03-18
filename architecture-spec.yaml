@@ -1,0 +1,337 @@
+meta:
+  theme: tech-blue
+  layout: vertical
+  profile: engineering-review
+  routing: orthogonal
+  canvas: 1600x1200
+  title: "短剧翻译Pipeline — 文件驱动架构"
+  description: "基于架构决策Q1-Q10，去数据库，全文件交互。S1→S2/S3→S5→S6/S7→QA 七阶段DAG。"
+
+modules:
+  - id: input
+    label: "输入层 Input"
+  - id: manager
+    label: "Manager Agent (LangGraph + Celery)"
+  - id: pipeline_phase1
+    label: "Phase 1 — 最小闭环"
+  - id: pipeline_phase2
+    label: "Phase 2 — 翻译约束增强"
+  - id: filesys
+    label: "文件系统 Shared Memory (取代数据库)"
+  - id: output
+    label: "输出 — 翻译交付包"
+  - id: dashboard
+    label: "Monitoring Dashboard"
+
+nodes:
+  # === Input Layer ===
+  - id: video
+    label: "中文短剧视频\n3-6min/集, 200-500集/部"
+    type: document
+    module: input
+    size: medium
+    position: { x: 80, y: 40 }
+  - id: srt
+    label: "已有中文字幕\n(SRT格式)"
+    type: document
+    module: input
+    size: medium
+    position: { x: 240, y: 40 }
+  - id: config
+    label: "project.json\n批次/语言/Phase配置"
+    type: document
+    module: input
+    size: medium
+    position: { x: 400, y: 40 }
+
+  # === Manager Agent ===
+  - id: mgr
+    label: "Manager Agent\n任务编排 | DAG调度 | 断点续跑\n资源调度 | 异常处理 | SSE推送"
+    type: service
+    module: manager
+    size: xl
+    position: { x: 200, y: 170 }
+
+  # === Phase 1 Pipeline ===
+  - id: s1
+    label: "S1 字幕校验+说话人\nFunASR Pipeline\n(Paraformer+CAM++)\nSenseVoice情绪辅助"
+    type: process
+    module: pipeline_phase1
+    size: large
+    position: { x: 80, y: 320 }
+  - id: s2
+    label: "S2 角色识别\nCAM++声纹聚类\nHanLP NER\nLLM语义推理"
+    type: process
+    module: pipeline_phase1
+    size: large
+    position: { x: 340, y: 280 }
+  - id: s3
+    label: "S3 情绪提取\nemotion2vec+(音频)\nLLM文本分析\n双通道1-10评分"
+    type: process
+    module: pipeline_phase1
+    size: large
+    position: { x: 340, y: 430 }
+  - id: s5
+    label: "S5 剧本生成\nLLM整合格式化\n角色+对白+情绪\n单集/批次摘要"
+    type: process
+    module: pipeline_phase1
+    size: large
+    position: { x: 600, y: 350 }
+
+  # === Phase 2 Pipeline ===
+  - id: s6
+    label: "S6 情感管理分析\n情感弧线 | 反转点检测\n6种故事形状分类"
+    type: process
+    module: pipeline_phase2
+    size: large
+    position: { x: 860, y: 280 }
+  - id: s7
+    label: "S7 Hook分析\n6种Hook类型识别\n翻译风险标注\n跨集连贯性"
+    type: process
+    module: pipeline_phase2
+    size: large
+    position: { x: 860, y: 430 }
+  - id: qa
+    label: "QA Agent\n每步校验 | 一致性检查\n反思循环(≤3次)"
+    type: process
+    module: pipeline_phase2
+    size: large
+    position: { x: 1100, y: 350 }
+
+  # === File System (Shared Memory) ===
+  - id: fs_project
+    label: "project.json\n项目配置+状态"
+    type: document
+    module: filesys
+    size: medium
+    position: { x: 80, y: 620 }
+  - id: fs_state
+    label: "pipeline_state.json\n批次/集处理状态\n断点续跑信息"
+    type: document
+    module: filesys
+    size: medium
+    position: { x: 240, y: 620 }
+  - id: fs_characters
+    label: "character_guide.json\n角色档案(名/别名/关系)\n跨批次增量更新"
+    type: document
+    module: filesys
+    size: medium
+    position: { x: 420, y: 620 }
+  - id: fs_episodes
+    label: "episodes/ep001/\nsubtitle*.json | speakers.json\ncharacters.json | emotions.json\nscript.md | hooks.json\nqa_result.json"
+    type: document
+    module: filesys
+    size: large
+    position: { x: 620, y: 620 }
+  - id: fs_glossary
+    label: "glossary.json\n专有名词+术语表\n翻译记忆"
+    type: document
+    module: filesys
+    size: medium
+    position: { x: 840, y: 620 }
+  - id: fs_logs
+    label: "logs/\npipeline.log\nbatch_*.log"
+    type: document
+    module: filesys
+    size: medium
+    position: { x: 1020, y: 620 }
+  - id: fs_voice
+    label: "voice_embeddings/\n*.npy 声纹向量"
+    type: document
+    module: filesys
+    size: medium
+    position: { x: 1180, y: 620 }
+
+  # === Output ===
+  - id: pack_script
+    label: "ep*_script.md\n剧本包"
+    type: document
+    module: output
+    size: medium
+    position: { x: 80, y: 820 }
+  - id: pack_chars
+    label: "character_guide.md\n角色表"
+    type: document
+    module: output
+    size: medium
+    position: { x: 260, y: 820 }
+  - id: pack_notes
+    label: "translation_notes.md\n翻译注意事项"
+    type: document
+    module: output
+    size: medium
+    position: { x: 440, y: 820 }
+  - id: pack_glossary
+    label: "glossary.md\n术语表"
+    type: document
+    module: output
+    size: medium
+    position: { x: 620, y: 820 }
+
+  # === Dashboard ===
+  - id: fastapi
+    label: "FastAPI Backend\n(轻量,无DB)\n读取JSON/MD文件\nSSE实时推送"
+    type: service
+    module: dashboard
+    size: large
+    position: { x: 860, y: 820 }
+  - id: react
+    label: "React Frontend\nAnt Design + ECharts\nPipeline DAG可视化\n集详情/情感/Hook/QA"
+    type: service
+    module: dashboard
+    size: large
+    position: { x: 1080, y: 820 }
+
+  # === Human ===
+  - id: translators
+    label: "人工翻译团队"
+    type: user
+    size: large
+    position: { x: 300, y: 960 }
+
+edges:
+  # Input → Manager
+  - from: video
+    to: mgr
+    type: primary
+    label: "视频文件"
+  - from: srt
+    to: mgr
+    type: primary
+    label: "字幕SRT"
+  - from: config
+    to: mgr
+    type: primary
+    label: "配置"
+
+  # Manager → S1
+  - from: mgr
+    to: s1
+    type: primary
+    label: "调度执行"
+
+  # S1 → S2, S3 (parallel)
+  - from: s1
+    to: s2
+    type: primary
+    label: "并行"
+  - from: s1
+    to: s3
+    type: primary
+    label: "并行"
+
+  # S2, S3 → S5
+  - from: s2
+    to: s5
+    type: primary
+  - from: s3
+    to: s5
+    type: primary
+
+  # S5 → S6, S7 (parallel)
+  - from: s5
+    to: s6
+    type: primary
+    label: "并行"
+  - from: s5
+    to: s7
+    type: primary
+    label: "并行"
+
+  # S6, S7 → QA
+  - from: s6
+    to: qa
+    type: primary
+  - from: s7
+    to: qa
+    type: primary
+
+  # Pipeline stages → File System (write)
+  - from: s1
+    to: fs_episodes
+    type: data
+    label: "写入 subtitle/speakers"
+  - from: s2
+    to: fs_characters
+    type: data
+    label: "写入 characters"
+  - from: s2
+    to: fs_voice
+    type: data
+    label: "声纹"
+  - from: s3
+    to: fs_episodes
+    type: data
+    label: "写入 emotions"
+  - from: s5
+    to: fs_episodes
+    type: data
+    label: "写入 script.md"
+  - from: s6
+    to: fs_episodes
+    type: data
+    label: "写入 emotion_analysis"
+  - from: s7
+    to: fs_episodes
+    type: data
+    label: "写入 hooks"
+  - from: qa
+    to: fs_episodes
+    type: data
+    label: "写入 qa_result"
+
+  # Manager ↔ File System
+  - from: mgr
+    to: fs_state
+    type: data
+    label: "读写状态"
+    bidirectional: true
+  - from: mgr
+    to: fs_logs
+    type: data
+    label: "写入日志"
+
+  # File System → Output
+  - from: fs_episodes
+    to: pack_script
+    type: primary
+    label: "QA通过后生成"
+  - from: fs_characters
+    to: pack_chars
+    type: primary
+  - from: fs_glossary
+    to: pack_glossary
+    type: primary
+  - from: fs_episodes
+    to: pack_notes
+    type: optional
+
+  # Output → Translators
+  - from: pack_script
+    to: translators
+    type: primary
+  - from: pack_chars
+    to: translators
+    type: primary
+  - from: pack_notes
+    to: translators
+    type: primary
+  - from: pack_glossary
+    to: translators
+    type: primary
+
+  # File System → Dashboard
+  - from: fs_state
+    to: fastapi
+    type: data
+    label: "读取JSON/MD"
+  - from: fs_episodes
+    to: fastapi
+    type: data
+  - from: fs_logs
+    to: fastapi
+    type: data
+  - from: fastapi
+    to: react
+    type: primary
+    label: "REST + SSE"
