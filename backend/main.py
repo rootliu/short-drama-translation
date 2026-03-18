@@ -1,16 +1,25 @@
 """FastAPI backend for Short Drama Translation Pipeline prototype."""
 
+from __future__ import annotations
+
 import asyncio
-import datetime
+import json
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from database import init_db, get_db, Project, Batch, Episode, CharacterDB, PipelineLog, ProjectStatus, StageStatus
+from store import (
+    ProjectStatus, StageStatus,
+    list_projects, create_project, get_project,
+    get_pipeline_state, update_batch_status,
+    get_batch_episodes, get_episode_meta, update_episode_meta,
+    read_episode_data, write_episode_data,
+    get_characters, save_characters,
+    add_log, get_logs,
+    get_project_stats, get_episode_dir,
+)
 from pipeline import run_batch, event_stream, STAGE_CONFIG
 from file_manager import save_upload, read_subtitle_text, ALLOWED_SUBTITLE_EXT, ALLOWED_VIDEO_EXT
 from srt_parser import parse_subtitle_file, get_subtitle_stats
@@ -27,9 +36,16 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def startup():
-    init_db()
+# === Helpers ===
+
+def encode_episode_id(project_id: int, episode_number: int) -> int:
+    """Global episode ID = project_id * 10000 + episode_number."""
+    return project_id * 10000 + episode_number
+
+
+def decode_episode_id(episode_id: int) -> tuple[int, int]:
+    """Returns (project_id, episode_number) from a global episode ID."""
+    return episode_id // 10000, episode_id % 10000
 
 
 # === Schemas ===
@@ -41,6 +57,7 @@ class ProjectCreate(BaseModel):
     batch_size: int = 10
     target_language: str = "en"
 
+
 class BatchAction(BaseModel):
     batch_id: int
 
@@ -48,157 +65,191 @@ class BatchAction(BaseModel):
 # === Project Endpoints ===
 
 @app.get("/api/projects")
-def list_projects(db: Session = Depends(get_db)):
-    projects = db.query(Project).order_by(Project.created_at.desc()).all()
-    result = []
-    for p in projects:
-        batch_count = db.query(Batch).filter(Batch.project_id == p.id).count()
-        completed_batches = db.query(Batch).filter(Batch.project_id == p.id, Batch.status == ProjectStatus.COMPLETED).count()
-        total_eps = db.query(Episode).filter(Episode.batch_id.in_(
-            db.query(Batch.id).filter(Batch.project_id == p.id)
-        )).count()
-        completed_eps = db.query(Episode).filter(
-            Episode.batch_id.in_(db.query(Batch.id).filter(Batch.project_id == p.id)),
-            Episode.status == StageStatus.COMPLETED
-        ).count()
-        result.append({
-            "id": p.id, "name": p.name, "description": p.description,
-            "total_episodes": p.total_episodes, "batch_size": p.batch_size,
-            "target_language": p.target_language, "status": p.status,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
-            "batch_count": batch_count, "completed_batches": completed_batches,
-            "total_eps": total_eps, "completed_eps": completed_eps,
-        })
-    return result
+def api_list_projects():
+    return list_projects()
 
 
 @app.post("/api/projects")
-def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
-    project = Project(
-        name=data.name, description=data.description,
-        total_episodes=data.total_episodes, batch_size=data.batch_size,
+def api_create_project(data: ProjectCreate):
+    result = create_project(
+        name=data.name,
+        description=data.description,
+        total_episodes=data.total_episodes,
+        batch_size=data.batch_size,
         target_language=data.target_language,
     )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-
-    # Auto-create batches and episodes
-    num_batches = (data.total_episodes + data.batch_size - 1) // data.batch_size
-    for i in range(num_batches):
-        start_ep = i * data.batch_size + 1
-        end_ep = min((i + 1) * data.batch_size, data.total_episodes)
-        batch = Batch(
-            project_id=project.id, batch_number=i + 1,
-            start_episode=start_ep, end_episode=end_ep,
-        )
-        db.add(batch)
-        db.commit()
-        db.refresh(batch)
-
-        for ep_num in range(start_ep, end_ep + 1):
-            episode = Episode(batch_id=batch.id, episode_number=ep_num)
-            db.add(episode)
-        db.commit()
-
-    return {"id": project.id, "name": project.name, "batches_created": num_batches}
+    return {"id": result["id"], "name": result["name"], "batches_created": result["batches_created"]}
 
 
 @app.get("/api/projects/{project_id}")
-def get_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
+def api_get_project(project_id: int):
+    project = get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
-    batches = db.query(Batch).filter(Batch.project_id == project_id).order_by(Batch.batch_number).all()
+
+    pipeline = get_pipeline_state(project_id)
+    characters_data = get_characters(project_id)
+
+    # Build batch list with episode counts
     batch_list = []
-    for b in batches:
-        ep_count = db.query(Episode).filter(Episode.batch_id == b.id).count()
-        completed_count = db.query(Episode).filter(Episode.batch_id == b.id, Episode.status == StageStatus.COMPLETED).count()
+    for b in pipeline.get("batches", []):
+        batch_num = b["batch_number"]
+        eps = get_batch_episodes(project_id, batch_num)
+        ep_count = len(eps)
+        completed_count = sum(1 for e in eps if e.get("status") == StageStatus.COMPLETED)
         batch_list.append({
-            "id": b.id, "batch_number": b.batch_number,
-            "start_episode": b.start_episode, "end_episode": b.end_episode,
-            "status": b.status, "progress": b.progress,
-            "started_at": b.started_at.isoformat() if b.started_at else None,
-            "completed_at": b.completed_at.isoformat() if b.completed_at else None,
-            "episode_count": ep_count, "completed_count": completed_count,
+            "id": batch_num,
+            "batch_number": batch_num,
+            "start_episode": b.get("start_episode"),
+            "end_episode": b.get("end_episode"),
+            "status": b.get("status", ProjectStatus.PENDING),
+            "progress": b.get("progress", 0),
+            "started_at": b.get("started_at"),
+            "completed_at": b.get("completed_at"),
+            "episode_count": ep_count,
+            "completed_count": completed_count,
         })
-    characters = db.query(CharacterDB).filter(CharacterDB.project_id == project_id).all()
-    char_list = [{"id": c.id, "name": c.name, "aliases": c.aliases, "description": c.description} for c in characters]
+
+    char_list = []
+    for i, c in enumerate(characters_data):
+        char_list.append({
+            "id": i + 1,
+            "name": c.get("name", ""),
+            "aliases": c.get("aliases", []),
+            "description": c.get("description", ""),
+        })
+
     return {
-        "id": project.id, "name": project.name, "description": project.description,
-        "total_episodes": project.total_episodes, "batch_size": project.batch_size,
-        "target_language": project.target_language, "status": project.status,
-        "created_at": project.created_at.isoformat() if project.created_at else None,
-        "batches": batch_list, "characters": char_list,
+        "id": project["id"],
+        "name": project["name"],
+        "description": project.get("description", ""),
+        "total_episodes": project.get("total_episodes"),
+        "batch_size": project.get("batch_size"),
+        "target_language": project.get("target_language", "en"),
+        "status": project.get("status", ProjectStatus.PENDING),
+        "created_at": project.get("created_at"),
+        "batches": batch_list,
+        "characters": char_list,
     }
 
 
 # === Batch Endpoints ===
 
 @app.post("/api/projects/{project_id}/batches/{batch_id}/start")
-async def start_batch(project_id: int, batch_id: int, db: Session = Depends(get_db)):
-    batch = db.query(Batch).filter(Batch.id == batch_id, Batch.project_id == project_id).first()
+async def api_start_batch(project_id: int, batch_id: int):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    pipeline = get_pipeline_state(project_id)
+    batches = pipeline.get("batches", [])
+    batch = None
+    for b in batches:
+        if b["batch_number"] == batch_id:
+            batch = b
+            break
     if not batch:
         raise HTTPException(404, "Batch not found")
-    if batch.status == ProjectStatus.PROCESSING:
+    if batch.get("status") == ProjectStatus.PROCESSING:
         raise HTTPException(400, "Batch already processing")
 
-    asyncio.create_task(run_batch(batch_id, project_id))
+    asyncio.create_task(run_batch(project_id, batch_id))
     return {"message": "Batch processing started", "batch_id": batch_id}
 
 
 @app.get("/api/projects/{project_id}/batches/{batch_id}/episodes")
-def get_batch_episodes(project_id: int, batch_id: int, db: Session = Depends(get_db)):
-    episodes = db.query(Episode).filter(Episode.batch_id == batch_id).order_by(Episode.episode_number).all()
-    return [{
-        "id": e.id, "episode_number": e.episode_number, "title": e.title or f"EP{e.episode_number:03d}",
-        "duration_seconds": e.duration_seconds, "status": e.status, "current_stage": e.current_stage,
-        "s1_status": e.s1_status, "s2_status": e.s2_status, "s3_status": e.s3_status,
-        "s5_status": e.s5_status, "s6_status": e.s6_status, "s7_status": e.s7_status,
-        "qa_status": e.qa_status,
-        "qa_passed": e.qa_result.get("passed") if e.qa_result else None,
-    } for e in episodes]
+def api_get_batch_episodes(project_id: int, batch_id: int):
+    eps = get_batch_episodes(project_id, batch_id)
+    result = []
+    for e in eps:
+        ep_num = e.get("episode_number", 0)
+        ep_id = encode_episode_id(project_id, ep_num)
+        result.append({
+            "id": ep_id,
+            "episode_number": ep_num,
+            "title": e.get("title") or f"EP{ep_num:03d}",
+            "duration_seconds": e.get("duration_seconds"),
+            "status": e.get("status", StageStatus.PENDING),
+            "current_stage": e.get("current_stage"),
+            "s1_status": e.get("s1_status", StageStatus.PENDING),
+            "s2_status": e.get("s2_status", StageStatus.PENDING),
+            "s3_status": e.get("s3_status", StageStatus.PENDING),
+            "s5_status": e.get("s5_status", StageStatus.PENDING),
+            "s6_status": e.get("s6_status", StageStatus.PENDING),
+            "s7_status": e.get("s7_status", StageStatus.PENDING),
+            "qa_status": e.get("qa_status", StageStatus.PENDING),
+            "qa_passed": e.get("qa_passed"),
+        })
+    return result
 
 
 # === Episode Endpoints ===
 
+@app.get("/api/projects/{project_id}/episodes/{episode_number}/detail")
+def api_get_episode_by_project(project_id: int, episode_number: int):
+    """Get episode detail by project_id and episode_number (new-style route)."""
+    return _build_episode_response(project_id, episode_number)
+
+
 @app.get("/api/episodes/{episode_id}")
-def get_episode(episode_id: int, db: Session = Depends(get_db)):
-    ep = db.query(Episode).filter(Episode.id == episode_id).first()
-    if not ep:
+def api_get_episode(episode_id: int):
+    """Get episode by global ID (backward compat). Global ID = project_id * 10000 + episode_number."""
+    project_id, episode_number = decode_episode_id(episode_id)
+    if project_id <= 0 or episode_number <= 0:
         raise HTTPException(404, "Episode not found")
+    return _build_episode_response(project_id, episode_number)
+
+
+def _build_episode_response(project_id: int, episode_number: int) -> dict:
+    meta = get_episode_meta(project_id, episode_number)
+    if not meta:
+        raise HTTPException(404, "Episode not found")
+
+    ep_id = encode_episode_id(project_id, episode_number)
+
+    # Read rich data files from episode directory
+    subtitle_data = read_episode_data(project_id, episode_number, "subtitle.json")
+    characters = read_episode_data(project_id, episode_number, "characters.json")
+    emotions = read_episode_data(project_id, episode_number, "emotions.json")
+    script_text = read_episode_data(project_id, episode_number, "script.md")
+    summary_text = read_episode_data(project_id, episode_number, "summary.txt")
+    emotion_analysis = read_episode_data(project_id, episode_number, "emotion_analysis.json")
+    hooks = read_episode_data(project_id, episode_number, "hooks.json")
+    qa_result = read_episode_data(project_id, episode_number, "qa_result.json")
+
     return {
-        "id": ep.id, "episode_number": ep.episode_number, "title": ep.title,
-        "duration_seconds": ep.duration_seconds, "status": ep.status,
-        "current_stage": ep.current_stage,
+        "id": ep_id,
+        "episode_number": episode_number,
+        "title": meta.get("title"),
+        "duration_seconds": meta.get("duration_seconds"),
+        "status": meta.get("status", StageStatus.PENDING),
+        "current_stage": meta.get("current_stage"),
         "stages": {
-            "s1": ep.s1_status, "s2": ep.s2_status, "s3": ep.s3_status,
-            "s5": ep.s5_status, "s6": ep.s6_status, "s7": ep.s7_status,
-            "qa": ep.qa_status,
+            "s1": meta.get("s1_status", StageStatus.PENDING),
+            "s2": meta.get("s2_status", StageStatus.PENDING),
+            "s3": meta.get("s3_status", StageStatus.PENDING),
+            "s5": meta.get("s5_status", StageStatus.PENDING),
+            "s6": meta.get("s6_status", StageStatus.PENDING),
+            "s7": meta.get("s7_status", StageStatus.PENDING),
+            "qa": meta.get("qa_status", StageStatus.PENDING),
         },
-        "subtitle_data": ep.subtitle_data,
-        "characters": ep.characters,
-        "emotions": ep.emotions,
-        "script": ep.script,
-        "summary": ep.summary,
-        "emotion_analysis": ep.emotion_analysis,
-        "hooks": ep.hooks,
-        "qa_result": ep.qa_result,
+        "subtitle_data": subtitle_data,
+        "characters": characters,
+        "emotions": emotions,
+        "script": script_text,
+        "summary": summary_text,
+        "emotion_analysis": emotion_analysis,
+        "hooks": hooks,
+        "qa_result": qa_result,
     }
 
 
 # === Logs ===
 
 @app.get("/api/projects/{project_id}/logs")
-def get_logs(project_id: int, limit: int = Query(50, le=200), db: Session = Depends(get_db)):
-    logs = db.query(PipelineLog).filter(
-        PipelineLog.project_id == project_id
-    ).order_by(PipelineLog.timestamp.desc()).limit(limit).all()
-    return [{
-        "id": l.id, "stage": l.stage, "level": l.level,
-        "message": l.message, "timestamp": l.timestamp.isoformat(),
-        "episode_id": l.episode_id, "batch_id": l.batch_id,
-    } for l in logs]
+def api_get_logs(project_id: int, limit: int = Query(50, le=200)):
+    logs = get_logs(project_id, limit=limit)
+    return logs
 
 
 # === SSE Stream ===
@@ -219,9 +270,9 @@ def get_pipeline_stages():
     return {
         "stages": {k: {"name": v["name"], "depends_on": v["depends_on"]} for k, v in STAGE_CONFIG.items()},
         "phases": {
-            "phase1": {"name": "Phase 1 - 最小闭环", "stages": ["s1", "s2", "s3", "s5"], "active": True},
-            "phase2": {"name": "Phase 2 - 翻译约束", "stages": ["s6", "s7", "qa"], "active": True},
-            "phase3": {"name": "Phase 3 - 完整版", "stages": ["s4"], "active": False},
+            "phase1": {"name": "Phase 1 - \u6700\u5c0f\u95ed\u73af", "stages": ["s1", "s2", "s3", "s5"], "active": True},
+            "phase2": {"name": "Phase 2 - \u7ffb\u8bd1\u7ea6\u675f", "stages": ["s6", "s7", "qa"], "active": True},
+            "phase3": {"name": "Phase 3 - \u5b8c\u6574\u7248", "stages": ["s4"], "active": False},
         },
     }
 
@@ -229,53 +280,8 @@ def get_pipeline_stages():
 # === Stats ===
 
 @app.get("/api/projects/{project_id}/stats")
-def get_project_stats(project_id: int, db: Session = Depends(get_db)):
-    batch_ids = [b.id for b in db.query(Batch).filter(Batch.project_id == project_id).all()]
-    if not batch_ids:
-        return {"total_episodes": 0}
-
-    total_eps = db.query(Episode).filter(Episode.batch_id.in_(batch_ids)).count()
-    completed_eps = db.query(Episode).filter(Episode.batch_id.in_(batch_ids), Episode.status == StageStatus.COMPLETED).count()
-
-    # Emotion stats from completed episodes
-    completed_episodes = db.query(Episode).filter(
-        Episode.batch_id.in_(batch_ids),
-        Episode.status == StageStatus.COMPLETED,
-        Episode.emotion_analysis.isnot(None),
-    ).all()
-
-    avg_intensity = 0
-    total_reversals = 0
-    arc_types = {}
-    hook_types = {}
-    qa_pass_count = 0
-
-    for ep in completed_episodes:
-        if ep.emotion_analysis:
-            ea = ep.emotion_analysis
-            avg_intensity += ea.get("average_intensity", 0)
-            total_reversals += len(ea.get("reversals", []))
-            arc = ea.get("arc_type", "unknown")
-            arc_types[arc] = arc_types.get(arc, 0) + 1
-        if ep.hooks:
-            ht = ep.hooks.get("type", "unknown")
-            hook_types[ht] = hook_types.get(ht, 0) + 1
-        if ep.qa_result and ep.qa_result.get("passed"):
-            qa_pass_count += 1
-
-    n = len(completed_episodes) or 1
-    return {
-        "total_episodes": total_eps,
-        "completed_episodes": completed_eps,
-        "processing_episodes": db.query(Episode).filter(
-            Episode.batch_id.in_(batch_ids), Episode.status == StageStatus.RUNNING
-        ).count(),
-        "avg_emotion_intensity": round(avg_intensity / n, 1),
-        "total_reversals": total_reversals,
-        "arc_type_distribution": arc_types,
-        "hook_type_distribution": hook_types,
-        "qa_pass_rate": round(qa_pass_count / n * 100, 1) if n > 0 else 0,
-    }
+def api_get_project_stats(project_id: int):
+    return get_project_stats(project_id)
 
 
 # === File Upload ===
@@ -285,10 +291,15 @@ async def upload_episode_file(
     project_id: int,
     episode_id: int,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
 ):
-    episode = db.query(Episode).filter(Episode.id == episode_id).first()
-    if not episode:
+    # Decode global episode ID to get episode_number
+    _, episode_number = decode_episode_id(episode_id)
+    if episode_number <= 0:
+        # Maybe episode_id IS the episode_number directly (small number)
+        episode_number = episode_id
+
+    meta_check = get_episode_meta(project_id, episode_number)
+    if not meta_check:
         raise HTTPException(404, "Episode not found")
 
     content = await file.read()
@@ -297,29 +308,39 @@ async def upload_episode_file(
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    episode.source_file = meta["path"]
-    episode.source_type = meta["file_type"]
+    parsed_lines = []
 
     # If subtitle file, parse immediately
     if meta["file_type"] == "subtitle":
         text = read_subtitle_text(meta["path"])
         lines = parse_subtitle_file(text, file.filename)
         stats = get_subtitle_stats(lines)
-        episode.raw_subtitles = lines
-        episode.subtitle_data = {
+        parsed_lines = lines
+
+        subtitle_data = {
             **stats,
             "asr_match_rate": 1.0,
             "dialogues": lines,
         }
-        episode.s1_status = StageStatus.COMPLETED
-        episode.title = episode.title or f"EP{episode.episode_number:03d}"
-        episode.duration_seconds = stats["duration"]
+        write_episode_data(project_id, episode_number, "subtitle.json", subtitle_data)
 
-    db.commit()
+        update_episode_meta(project_id, episode_number,
+            s1_status=StageStatus.COMPLETED,
+            title=meta_check.get("title") or f"EP{episode_number:03d}",
+            duration_seconds=stats["duration"],
+            source_file=meta["path"],
+            source_type=meta["file_type"],
+        )
+    else:
+        update_episode_meta(project_id, episode_number,
+            source_file=meta["path"],
+            source_type=meta["file_type"],
+        )
+
     return {
         "message": "File uploaded successfully",
         "file": meta,
-        "parsed_lines": len(episode.raw_subtitles) if episode.raw_subtitles else 0,
+        "parsed_lines": len(parsed_lines),
     }
 
 
@@ -327,25 +348,25 @@ async def upload_episode_file(
 async def batch_upload_subtitles(
     project_id: int,
     files: list[UploadFile] = File(...),
-    db: Session = Depends(get_db),
 ):
     """Upload multiple subtitle files at once. Files are matched to episodes by order or filename."""
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Get all episodes for this project, ordered by episode number
-    batches = db.query(Batch).filter(Batch.project_id == project_id).all()
-    batch_ids = [b.id for b in batches]
-    episodes = db.query(Episode).filter(
-        Episode.batch_id.in_(batch_ids)
-    ).order_by(Episode.episode_number).all()
+    # Get all episode numbers for this project across all batches
+    pipeline = get_pipeline_state(project_id)
+    all_episode_numbers = []
+    for b in pipeline.get("batches", []):
+        for ep_num in range(b["start_episode"], b["end_episode"] + 1):
+            all_episode_numbers.append(ep_num)
+    all_episode_numbers.sort()
 
     results = []
     for i, file in enumerate(sorted(files, key=lambda f: f.filename)):
-        if i >= len(episodes):
+        if i >= len(all_episode_numbers):
             break
-        ep = episodes[i]
+        ep_num = all_episode_numbers[i]
         content = await file.read()
         try:
             meta = save_upload(project_id, file.filename, content)
@@ -353,83 +374,111 @@ async def batch_upload_subtitles(
             results.append({"filename": file.filename, "status": "error", "reason": "unsupported format"})
             continue
 
-        ep.source_file = meta["path"]
-        ep.source_type = meta["file_type"]
-
+        lines = []
         if meta["file_type"] == "subtitle":
             text = read_subtitle_text(meta["path"])
             lines = parse_subtitle_file(text, file.filename)
             stats = get_subtitle_stats(lines)
-            ep.raw_subtitles = lines
-            ep.subtitle_data = {**stats, "asr_match_rate": 1.0, "dialogues": lines}
-            ep.s1_status = StageStatus.COMPLETED
-            ep.title = ep.title or f"EP{ep.episode_number:03d}"
-            ep.duration_seconds = stats["duration"]
+            subtitle_data = {**stats, "asr_match_rate": 1.0, "dialogues": lines}
+            write_episode_data(project_id, ep_num, "subtitle.json", subtitle_data)
+            update_episode_meta(project_id, ep_num,
+                s1_status=StageStatus.COMPLETED,
+                title=f"EP{ep_num:03d}",
+                duration_seconds=stats["duration"],
+                source_file=meta["path"],
+                source_type=meta["file_type"],
+            )
+        else:
+            update_episode_meta(project_id, ep_num,
+                source_file=meta["path"],
+                source_type=meta["file_type"],
+            )
 
-        results.append({"filename": file.filename, "episode": ep.episode_number, "status": "ok", "lines": len(lines) if meta["file_type"] == "subtitle" else 0})
+        results.append({
+            "filename": file.filename,
+            "episode": ep_num,
+            "status": "ok",
+            "lines": len(lines) if meta["file_type"] == "subtitle" else 0,
+        })
 
-    db.commit()
     return {"uploaded": len(results), "results": results}
 
 
 # === Export ===
 
 @app.get("/api/projects/{project_id}/export")
-def export_project_markdown(project_id: int, db: Session = Depends(get_db)):
+def export_project_markdown(project_id: int):
     """Export project as a Markdown script document."""
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
 
-    batches = db.query(Batch).filter(Batch.project_id == project_id).order_by(Batch.batch_number).all()
-    batch_ids = [b.id for b in batches]
-    episodes = db.query(Episode).filter(
-        Episode.batch_id.in_(batch_ids),
-        Episode.status == StageStatus.COMPLETED,
-    ).order_by(Episode.episode_number).all()
+    pipeline = get_pipeline_state(project_id)
+    characters_data = get_characters(project_id)
 
-    characters = db.query(CharacterDB).filter(CharacterDB.project_id == project_id).all()
+    # Collect completed episodes across all batches
+    completed_episodes = []
+    for b in pipeline.get("batches", []):
+        batch_num = b["batch_number"]
+        eps = get_batch_episodes(project_id, batch_num)
+        for e in eps:
+            if e.get("status") == StageStatus.COMPLETED:
+                completed_episodes.append(e)
+    completed_episodes.sort(key=lambda e: e.get("episode_number", 0))
 
     lines = []
-    lines.append(f"# {project.name}\n")
-    lines.append(f"> {project.description}\n")
-    lines.append(f"> Target: {project.target_language.upper()} | Episodes: {len(episodes)} completed\n")
+    lines.append(f"# {project['name']}\n")
+    lines.append(f"> {project.get('description', '')}\n")
+    lines.append(f"> Target: {project.get('target_language', 'en').upper()} | Episodes: {len(completed_episodes)} completed\n")
     lines.append("---\n")
 
-    if characters:
+    if characters_data:
         lines.append("## Characters\n")
-        for c in characters:
-            aliases = ", ".join(c.aliases) if c.aliases else ""
-            lines.append(f"- **{c.name}** ({aliases}): {c.description}")
+        for c in characters_data:
+            aliases = ", ".join(c.get("aliases", [])) if c.get("aliases") else ""
+            lines.append(f"- **{c.get('name', '')}** ({aliases}): {c.get('description', '')}")
         lines.append("")
 
-    for ep in episodes:
-        lines.append(f"## Episode {ep.episode_number} — {ep.title or 'Untitled'}\n")
-        if ep.summary:
-            lines.append(f"*{ep.summary}*\n")
-        if ep.emotion_analysis:
-            ea = ep.emotion_analysis
+    for ep in completed_episodes:
+        ep_num = ep.get("episode_number", 0)
+        title = ep.get("title") or "Untitled"
+        lines.append(f"## Episode {ep_num} \u2014 {title}\n")
+
+        summary = read_episode_data(project_id, ep_num, "summary.txt")
+        if summary:
+            lines.append(f"*{summary}*\n")
+
+        emotion_analysis = read_episode_data(project_id, ep_num, "emotion_analysis.json")
+        if emotion_analysis and isinstance(emotion_analysis, dict):
+            ea = emotion_analysis
             lines.append(f"**Arc**: {ea.get('arc_type', '?')} | **Peak**: {ea.get('peak_time', '?')} | **Avg Intensity**: {ea.get('average_intensity', '?')}/10\n")
-        if ep.hooks:
-            h = ep.hooks
+
+        hooks = read_episode_data(project_id, ep_num, "hooks.json")
+        if hooks and isinstance(hooks, dict):
+            h = hooks
             lines.append(f"**Hook** [{h.get('type', '?')}]: {h.get('content', '')} (attraction: {h.get('attraction_score', '?')}/10)\n")
-            if h.get('translation_risk', 'LOW') != 'LOW':
-                lines.append(f"⚠️ Translation Risk: {h.get('translation_risk')} — {h.get('risk_reason', '')}\n")
-        if ep.script:
+            if h.get("translation_risk", "LOW") != "LOW":
+                lines.append(f"\u26a0\ufe0f Translation Risk: {h.get('translation_risk')} \u2014 {h.get('risk_reason', '')}\n")
+
+        script = read_episode_data(project_id, ep_num, "script.md")
+        if script:
             lines.append("### Script\n")
-            lines.append(f"```\n{ep.script}\n```\n")
-        if ep.qa_result:
-            qa = ep.qa_result
-            status = "✅ PASSED" if qa.get("passed") else "❌ NEEDS REVIEW"
+            lines.append(f"```\n{script}\n```\n")
+
+        qa_result = read_episode_data(project_id, ep_num, "qa_result.json")
+        if qa_result and isinstance(qa_result, dict):
+            qa = qa_result
+            status = "\u2705 PASSED" if qa.get("passed") else "\u274c NEEDS REVIEW"
             lines.append(f"**QA**: {status} (score: {qa.get('overall_score', '?')}/10)")
             for issue in qa.get("issues", []):
-                lines.append(f"  - ⚠️ {issue}")
+                lines.append(f"  - \u26a0\ufe0f {issue}")
             lines.append("")
+
         lines.append("---\n")
 
     md_content = "\n".join(lines)
     from urllib.parse import quote
-    safe_name = quote(f"{project.name}_script.md")
+    safe_name = quote(f"{project['name']}_script.md")
     return StreamingResponse(
         iter([md_content]),
         media_type="text/markdown; charset=utf-8",
