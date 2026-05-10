@@ -1,14 +1,12 @@
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu, Typography } from 'antd'
-import {
-  DashboardOutlined, ProjectOutlined, PlayCircleOutlined,
-  FileTextOutlined,
-} from '@ant-design/icons'
+import { DashboardOutlined, FileTextOutlined } from '@ant-design/icons'
 import Dashboard from './pages/Dashboard'
 import ProjectDetail from './pages/ProjectDetail'
 import EpisodeDetailPage from './pages/EpisodeDetail'
+import PrototypeStudio from './pages/PrototypeStudio'
 
-const { Header, Sider, Content } = Layout
+const { Header, Content } = Layout
 
 function App() {
   const navigate = useNavigate()
@@ -16,6 +14,7 @@ function App() {
 
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/prototype', icon: <FileTextOutlined />, label: 'Prototype Studio' },
   ]
 
   return (
@@ -40,6 +39,7 @@ function App() {
       <Content style={{ padding: 24, background: '#f0f2f5', minHeight: 'calc(100vh - 64px)' }}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/prototype" element={<PrototypeStudio />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="/episode/:id" element={<EpisodeDetailPage />} />
         </Routes>

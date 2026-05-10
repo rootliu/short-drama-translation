@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI评书艺人Agent v2 - 设计架构与UI展示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans SC', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .pipeline-stage { position: relative; }
+        .pipeline-arrow::after {
+            content: '▼';
+            display: block;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            margin: 0.5rem 0;
+        }
+        .card { transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 40px -10px rgba(0,0,0,0.15); }
+        .emotion-bar { height: 20px; border-radius: 4px; transition: width 1s ease; }
+        .storyboard-card { 
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .storyboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px -4px rgba(0,0,0,0.1);
+        }
+        .agent-box { border-left: 4px solid; }
+        .agent-human::before {
+            content: '👤';
+            margin-right: 0.5rem;
+        }
+        .agent-ai::before {
+            content: '🤖';
+            margin-right: 0.5rem;
+        }
+        
+        /* Flow animation */
+        @keyframes pulse-line {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+        .flow-line { animation: pulse-line 2s infinite; }
+        
+        .gradient-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .gradient-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .gradient-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .gradient-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .gradient-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .gradient-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+<!-- Hero Section -->
+<div class="gradient-6 text-white min-h-[50vh] flex items-center justify-center relative overflow-hidden">
+    <div class="absolute inset-0 opacity-20">
+        <svg class="w-full h-full" viewBox="0 0 1000 500">
+            <path d="M0,250 Q250,150 500,250 T1000,250" fill="none" stroke="white" stroke-width="2" opacity="0.3"/>
+            <path d="M0,280 Q250,180 500,280 T1000,280" fill="none" stroke="white" stroke-width="2" opacity="0.2"/>
+            <path d="M0,220 Q250,320 500,220 T1000,220" fill="none" stroke="white" stroke-width="2" opacity="0.2"/>
+        </svg>
+    </div>
+    <div class="relative z-10 text-center px-6">
+        <h1 class="text-5xl font-bold mb-4">AI评书艺人</h1>
+        <p class="text-xl opacity-90 mb-2">可控叙事生成引擎 v2.0</p>
+        <p class="text-lg opacity-70">从「完全自动化」到「人机协同的可控创作」</p>
+        <div class="mt-8 inline-flex gap-4 text-sm">
+            <span class="bg-white/20 px-4 py-2 rounded-full">🤖 AI骨架分析</span>
+            <span class="bg-white/20 px-4 py-2 rounded-full">👤 编剧协作</span>
+            <span class="bg-white/20 px-4 py-2 rounded-full">📊 可控生成</span>
+        </div>
+    </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-12">
+
+<!-- Architecture Section -->
+<section class="mb-20">
+    <h2 class="text-3xl font-bold mb-8 text-center">📐 v2 架构设计：6阶段可控创作流程</h2>
+    
+    <div class="grid gap-4">
+        <!-- Stage 1 -->
+        <div class="pipeline-stage">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="gradient-1 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center text-sm">1</span>
+                    <div>
+                        <h3 class="text-xl font-bold">分析阶段 (Skeleton Agent)</h3>
+                        <span class="agent-ai text-sm text-gray-500">🤖 AI主导</span>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-mono text-xs text-gray-500 mb-2">INPUT</div>
+                        <div class="text-sm">网文原文 (TXT/EPUB)</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-mono text-xs text-gray-500 mb-2">PROCESS</div>
+                        <div class="text-sm">NLP抽取 → 情节点识别 → 角色关系图</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-mono text-xs text-gray-500 mb-2">OUTPUT</div>
+                        <div class="text-sm">story_skeleton.json + original_arc.json</div>
+                    </div>
+                </div>
+            </div>
+            <div class="pipeline-arrow"></div>
+        </div>
+
+        <!-- Stage 2 -->
+        <div class="pipeline-stage">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="gradient-2 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center text-sm">2</span>
+                    <div>
+                        <h3 class="text-xl font-bold">模式映射 (Skeleton Agent)</h3>
+                        <span class="agent-ai text-sm text-gray-500">🤖 AI主导 → 人类审核</span>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-mono text-xs text-gray-500 mb-2">INPUT</div>
+                        <div class="text-sm">story_skeleton + 目标模式</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-mono text-xs text-gray-500 mb-2">PROCESS</div>
+                        <div class="text-sm">TOT骨架生成 + 空白区域识别</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-mono text-xs text-gray-500 mb-2">OUTPUT</div>
+                        <div class="text-sm">toc_skeleton.json + gap_analysis.json</div>
+                    </div>
+                </div>
+                <div class="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <span class="agent-human text-sm text-amber-700">👤 审核点1：编剧可调整Scene顺序、增删Scene、修改情感目标（Storyboard可视化接口）</span>
+                </div>
+            </div>
+            <div class="pipeline-arrow"></div>
+        </div>
+
+        <!-- Stage 3 -->
+        <div class="pipeline-stage">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="gradient-3 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center text-sm">3</span>
+                    <div>
+                        <h3 class="text-xl font-bold">增补填充 (Augmentor Agent)</h3>
+                        <span class="agent-ai text-sm text-gray-500">🤖 AI主导 (情感约束解码) → 人类审核</span>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm mb-2"><strong>Brahman(2020) 核心技术：</strong></p>
+                        <code class="text-xs bg-gray-800 text-green-400 p-2 rounded block font-mono">
+                            score(w_t) = log P(w_t|w_<t) - λ·d_emot(w_t, target_emotion)
+                        </code>
+                        <p class="text-xs text-gray-500 mt-2">情感偏离惩罚：生成时强制遵循预设情感目标</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm mb-2"><strong>输出：</strong></p>
+                        <ul class="text-sm text-gray-600 list-disc pl-5">
+                            <li>augmented_toc.json (填补空白后的完整目录骨架)</li>
+                            <li>source_map.json (每个Scene的来源标记)</li>
+                            <li>情感目标约束已绑定到每个Scene</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <span class="agent-human text-sm text-amber-700">👤 审核点2：编剧可修改增补内容、重写对白（可在Storyboard中单卡片编辑）</span>
+                </div>
+            </div>
+            <div class="pipeline-arrow"></div>
+        </div>
+
+        <!-- Stage 4 -->
+        <div class="pipeline-stage">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="gradient-4 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center text-sm">4</span>
+                    <div>
+                        <h3 class="text-xl font-bold">钩子工程 (Hook Engineer)</h3>
+                        <span class="agent-ai text-sm text-gray-500">🤖 AI主导 (Schulz信息论度量) → 人类审核</span>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-4 gap-3 mb-4">
+                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
+                        <div class="text-2xl font-bold text-blue-600" id="suspense-val">4.2</div>
+                        <div class="text-xs text-gray-600">强度 (Suspense)</div>
+                        <div class="w-full bg-gray-200 rounded-full mt-2 h-2">
+                            <div class="bg-blue-500 h-2 rounded-full" style="width: 84%"></div>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
+                        <div class="text-2xl font-bold text-purple-600" id="twist-val">3.8</div>
+                        <div class="text-xs text-gray-600">反转 (Plot Twist)</div>
+                        <div class="w-full bg-gray-200 rounded-full mt-2 h-2">
+                            <div class="bg-purple-500 h-2 rounded-full" style="width: 76%"></div>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
+                        <div class="text-2xl font-bold text-green-600" id="pivot-val">5.1</div>
+                        <div class="text-xs text-gray-600">转折 (Pivot)</div>
+                        <div class="w-full bg-gray-200 rounded-full mt-2 h-2">
+                            <div class="bg-green-500 h-2 rounded-full" style="width: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-lg">
+                        <div class="text-2xl font-bold text-amber-600" id="predict-val">2.1</div>
+                        <div class="text-xs text-gray-600">可预测性 (Predictability)</div>
+                        <div class="w-full bg-gray-200 rounded-full mt-2 h-2">
+                            <div class="bg-amber-500 h-2 rounded-full" style="width: 52%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <span class="agent-human text-sm text-amber-700">👤 审核点3：编剧可调整Hook位置、修改Hook类型</span>
+                </div>
+            </div>
+            <div class="pipeline-arrow"></div>
+        </div>
+
+        <!-- Stage 5 -->
+        <div class="pipeline-stage">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="gradient-5 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center text-sm">5</span>
+                    <div>
+                        <h3 class="text-xl font-bold">正文生成 (Text Expander)</h3>
+                        <span class="agent-ai text-sm text-gray-500">🤖 AI主导 (TOT骨架引导)</span>
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <p class="text-sm mb-2"><strong>Wang(2025) TOT骨架引导：</strong></p>
+                    <ul class="text-sm text-gray-600 list-disc pl-5">
+                        <li>每个Scene生成时，LLM明确知道「这是第N章第M个Scene」</li>
+                        <li>LLM获得「前面发生了什么」的压缩摘要</li>
+                        <li>LLM获得「后面要达成什么」的目标描述</li>
+                        <li>显著降低跨50集的<strong>情节遗忘</strong>和<strong>重复</strong></li>
+                    </ul>
+                </div>
+                <div class="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <span class="agent-human text-sm text-amber-700">👤 审核点4：编剧可在Storyboard中单Scene重写</span>
+                </div>
+            </div>
+            <div class="pipeline-arrow"></div>
+        </div>
+
+        <!-- Stage 6 -->
+        <div class="pipeline-stage">
+            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="gradient-6 text-white font-bold w-10 h-10 rounded-full flex items-center justify-center text-sm">6</span>
+                    <div>
+                        <h3 class="text-xl font-bold">评估与反馈 (Evaluator Agent)</h3>
+                        <span class="agent-ai text-sm text-gray-500">🤖 AI主导 → 定向反馈</span>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm font-bold mb-2">定向反馈示例：</p>
+                        <div class="bg-red-50 border border-red-200 rounded p-3 text-sm">
+                            <p>❌ <span class="font-bold">Augmentor</span> 在 EP15 Scene3 生成的 trigger </p>
+                            <p>Plot Twist值过低 (0.12)，建议修改为更高意外的转折</p>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded p-3 text-sm mt-2">
+                            <p>⚠️ <span class="font-bold">Hook Engineer</span> 在第8集的结尾 </p>
+                            <p>Suspense值 3.4，低于目标 4.0，建议增加未解决冲突</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-sm font-bold mb-2">反馈机制：</p>
+                        <ul class="text-sm text-gray-600 list-disc pl-5">
+                            <li>反馈直接关联到<strong>具体Agent + 具体Scene</strong></li>
+                            <li>不通过 → 定向重生成（指定Scene/指定Agent）</li>
+                            <li>同时<strong>通知人类编剧</strong></li>
+                            <li>避免v1的「黑箱循环」震荡问题</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <span class="agent-human text-sm text-amber-700">👤 审核点5：编剧根据Storyboard可视化结果终审调整</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Storyboard UI Section -->
+<section class="mb-20">
+    <h2 class="text-3xl font-bold mb-8 text-center">🎨 Storyboard UI 示例原型</h2>
+    
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+        <!-- Storyboard Header -->
+        <div class="bg-gray-900 text-white p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">📖</span>
+                <div>
+                    <h3 class="font-bold">穆桂英挂帅 - 短剧改编</h3>
+                    <p class="text-xs text-gray-400">模式：逆袭阶梯 | 80集</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="bg-gray-700 px-3 py-1 rounded text-sm">视图: 时间线</button>
+                <button class="bg-gray-700 px-3 py-1 rounded text-sm">情感曲线</button>
+                <button class="bg-blue-600 px-4 py-1 rounded text-sm">💾 保存</button>
+            </div>
+        </div>
+
+        <!-- Timeline Track -->
+        <div class="bg-gray-100 p-4 overflow-x-auto">
+            <div class="flex gap-2 min-w-max">
+                <!-- Part Cards -->
+                <div class="storyboard-card bg-white rounded-lg p-3 border-l-4 border-blue-500 w-64 flex-shrink-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-blue-600">PART 1 · 蓄压</span>
+                        <span class="text-xs text-gray-400">EP1-5</span>
+                    </div>
+                    <div class="text-sm font-medium mb-2">身份跌落</div>
+                    <div class="flex items-center gap-1">
+                        <div class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded">压抑 ↗</div>
+                        <div class="text-xs text-gray-400">蓄压强度: 8.2/10</div>
+                    </div>
+                </div>
+
+                <div class="storyboard-card bg-white rounded-lg p-3 border-l-4 border-yellow-500 w-64 flex-shrink-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-yellow-600">PART 2 · 初转</span>
+                        <span class="text-xs text-gray-400">EP6-10</span>
+                    </div>
+                    <div class="text-sm font-medium mb-2">首次逆袭</div>
+                    <div class="flex items-center gap-1">
+                        <div class="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded">爽度 7.5</div>
+                        <div class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded">付费点</div>
+                    </div>
+                </div>
+
+                <div class="storyboard-card bg-white rounded-lg p-3 border-l-4 border-purple-500 w-64 flex-shrink-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-purple-600">PART 3 · 升级</span>
+                        <span class="text-xs text-gray-400">EP11-40</span>
+                    </div>
+                    <div class="text-sm font-medium mb-2">3集循环升级</div>
+                    <div class="flex items-center gap-1">
+                        <div class="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded">循环模式</div>
+                        <div class="text-xs text-gray-400">均值: 6.8</div>
+                    </div>
+                </div>
+
+                <div class="storyboard-card bg-gray-50 rounded-lg p-3 border-l-4 border-dashed border-gray-300 w-48 flex-shrink-0 flex items-center justify-center">
+                    <div class="text-center text-gray-400">
+                        <div class="text-2xl mb-1">+</div>
+                        <div class="text-xs">添加Part</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emotion Curve Preview -->
+        <div class="p-4 border-t">
+            <h4 class="text-sm font-bold mb-3">🎢 情感弧线预览 (EP 1-20)</h4>
+            <div class="h-40 relative">
+                <svg viewBox="0 0 1000 200" class="w-full h-full">
+                    <!-- Grid -->
+                    <line x1="50" y1="180" x2="950" y2="180" stroke="#e5e7eb" stroke-width="1"/>
+                    <line x1="50" y1="140" x2="950" y2="140" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>
+                    <line x1="50" y1="100" x2="950" y2="100" stroke="#e5e7eb" stroke-width="1"/>
+                    <line x1="50" y1="60" x2="950" y2="60" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>
+                    <line x1="50" y1="20" x2="950" y2="20" stroke="#e5e7eb" stroke-width="1"/>
+                    
+                    <!-- Axis labels -->
+                    <text x="20" y="185" class="text-xs fill-gray-400">-10</text>
+                    <text x="25" y="105" class="text-xs fill-gray-400">0</text>
+                    <text x="20" y="25" class="text-xs fill-gray-400">+10</text>
+
+                    <!-- Emotion curve -->
+                    <path d="M50,120 Q100,140 120,150 Q150,160 180,165 Q220,155 250,140 Q280,120 300,100 Q320,80 350,60 Q380,40 400,30 Q420,50 450,80 Q480,110 500,100 Q520,90 550,120 Q580,150 600,140 Q620,130 650,160 Q680,170 700,150 Q740,130 780,110 Q820,90 860,120 Q900,150 950,130" 
+                          fill="none" stroke="#667eea" stroke-width="3" class="flow-line"/>
+                    
+                    <!-- Paywall markers -->
+                    <circle cx="300" cy="100" r="8" fill="#f59e0b" stroke="white" stroke-width="2"/>
+                    <text x="290" y="80" class="text-xs fill-amber-600 font-bold">付费卡点 EP8</text>
+                    
+                    <circle cx="600" cy="140" r="8" fill="#f59e0b" stroke="white" stroke-width="2"/>
+                    <text x="590" y="170" class="text-xs fill-amber-600 font-bold">付费卡点 EP16</text>
+                    
+                    <!-- Scene markers -->
+                    <circle cx="120" cy="150" r="5" fill="#ef4444"/>
+                    <text x="110" y="175" class="text-xs fill-gray-500">EP3 被欺</text>
+                    
+                    <circle cx="400" cy="30" r="5" fill="#10b981"/>
+                    <text x="390" y="20" class="text-xs fill-gray-500">EP10 反转</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Scene Detail Panel -->
+        <div class="border-t p-4 bg-gray-50">
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-sm font-bold">📝 当前选中: EP8 Scene 3 - "真相揭露"</h4>
+                <div class="flex gap-2">
+                    <span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded">来源: 原著第三章</span>
+                    <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded">爽度: 8.2</span>
+                </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-2">场景描述：</p>
+                    <p class="text-sm">苏晚晴在大庭广众之下，拿出DNA鉴定报告。穆桂英的身份终于被证实，全场哗然。</p>
+                    <div class="mt-3 flex gap-2">
+                        <button class="text-xs bg-gray-200 px-3 py-1 rounded">✏️ 编辑</button>
+                        <button class="text-xs bg-gray-200 px-3 py-1 rounded">🔄 重生成</button>
+                        <button class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded">🗑️ 删除</button>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-2">情感目标 vs 实际：</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs w-20">蓄压目标:</span>
+                            <div class="flex-1 bg-gray-200 rounded-full h-3">
+                                <div class="bg-red-400 h-3 rounded-full" style="width: 70%"></div>
+                            </div>
+                            <span class="text-xs">7.0/10</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs w-20">释放目标:</span>
+                            <div class="flex-1 bg-gray-200 rounded-full h-3">
+                                <div class="bg-green-400 h-3 rounded-full" style="width: 82%"></div>
+                            </div>
+                            <span class="text-xs">8.2/10 ✅</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs w-20">Pivot:</span>
+                            <div class="flex-1 bg-gray-200 rounded-full h-3">
+                                <div class="bg-purple-400 h-3 rounded-full" style="width: 75%"></div>
+                            </div>
+                            <span class="text-xs">5.1 ✅</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- v1 vs v2 Comparison -->
+<section class="mb-20">
+    <h2 class="text-3xl font-bold mb-8 text-center">⚖️ v1 vs v2 对比</h2>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full bg-white rounded-2xl shadow-lg overflow-hidden">
+            <thead class="bg-gray-900 text-white">
+                <tr>
+                    <th class="p-4 text-left">对比维度</th>
+                    <th class="p-4 text-left">v1 设计</th>
+                    <th class="p-4 text-left">v2 改进</th>
+                    <th class="p-4 text-left">理论支撑</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <tr class="hover:bg-gray-50">
+                    <td class="p-4 font-medium">反馈循环</td>
+                    <td class="p-4 text-gray-500">黑箱循环，无收敛保证</td>
+                    <td class="p-4 text-green-700 font-medium">定向反馈（具体Scene→具体Agent）</td>
+                    <td class="p-4 text-sm">Goldfarb-Tarrant 2020 (Rescoring)</td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                    <td class="p-4 font-medium">生成约束</td>
+                    <td class="p-4 text-gray-500">无内部约束，仅靠事后打分</td>
+                    <td class="p-4 text-green-700 font-medium">情感约束解码 (emotion-discounted beam search)</td>
+                    <td class="p-4 text-sm">Brahman 2020</td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                    <td class="p-4 font-medium">人机协作</td>
+                    <td class="p-4 text-gray-500">纯自动化</td>
+                    <td class="p-4 text-green-700 font-medium">5个人类审核节点 + Storyboard可视化</td>
+                    <td class="p-4 text-sm">Yao 2024 (Storyboard)</td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                    <td class="p-4 font-medium">骨架-正文关系</td>
+                    <td class="p-4 text-gray-500">模式模板→直接生成</td>
+                    <td class="p-4 text-green-700 font-medium">模式模板→TOT骨架→正文生成</td>
+                    <td class="p-4 text-sm">Wang 2025 (TOT)</td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                    <td class="p-4 font-medium">情节遗忘</td>
+                    <td class="p-4 text-gray-500">无解决方案</td>
+                    <td class="p-4 text-green-700 font-medium">TOT骨架显式传递上下文</td>
+                    <td class="p-4 text-sm">Wang 2025 (TOT)</td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                    <td class="p-4 font-medium">爽度值计算</td>
+                    <td class="p-4 text-gray-500">公式定义</td>
+                    <td class="p-4 text-green-700 font-medium">公式 + Schulz信息论度量双重验证</td>
+                    <td class="p-4 text-sm">Schulz 2024</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="text-center text-gray-500 py-8">
+    <p>AI评书艺人Agent v2.0 · 可控多Agent叙事引擎 · 2025</p>
+    <p class="text-sm mt-2">基于 Reagan 2016 | Zimmerman 2026 | Goldfarb-Tarrant 2020 | Schulz 2024 | Wang 2025 | Brahman 2020 | Yao 2024 | Tian 2024</p>
+</footer>
+
+</div>
+
+<script>
+// Interactive: Click on Storyboard cards to show details
+document.querySelectorAll('.storyboard-card').forEach(card => {
+    card.addEventListener('click', () => {
+        // In real app, this would fetch and display scene details
+        card.style.outline = '2px solid #667eea';
+        setTimeout(() => {
+            card.style.outline = '';
+        }, 500);
+    });
+});
+
+// Simulate real-time updates
+setInterval(() => {
+    const metrics = ['suspense-val', 'twist-val', 'pivot-val', 'predict-val'];
+    metrics.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            const base = parseFloat(el.textContent);
+            const variation = (Math.random() - 0.5) * 0.2;
+            el.textContent = Math.max(0, Math.min(5, (base + variation).toFixed(1)));
+        }
+    });
+}, 5000);
+</script>
+
+</body>
+</html>
