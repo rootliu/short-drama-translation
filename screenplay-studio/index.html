@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI评书艺人 · 分镜工作台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Noto Sans SC', sans-serif; margin: 0; overflow: hidden; height: 100vh; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Three-column layout */
+        .studio-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr 380px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .panel { overflow-y: auto; border-right: 1px solid #e5e7eb; }
+        .panel-left { background: #f8fafc; }
+        .panel-center { background: #ffffff; display: flex; flex-direction: column; }
+        .panel-right { background: #f8fafc; border-right: none; }
+
+        /* Left panel sections */
+        .section-header {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .section-header:hover { background: #e2e8f0; }
+        .section-header .arrow { transition: transform 0.2s; }
+        .section-header.collapsed .arrow { transform: rotate(-90deg); }
+        .section-body { padding: 8px 12px; }
+        .section-body.hidden { display: none; }
+
+        /* Character card mini */
+        .char-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .char-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
+        .char-card.active { border-color: #667eea; background: #f0f0ff; }
+        .char-card .char-name { font-weight: 600; font-size: 13px; }
+        .char-card .char-role { font-size: 11px; color: #94a3b8; }
+        .char-card .char-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
+        .char-tag {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        /* Character detail panel */
+        .char-detail {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .char-detail h4 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #1e293b; }
+        .detail-row { font-size: 11px; color: #475569; margin-bottom: 3px; display: flex; }
+        .detail-label { font-weight: 600; min-width: 56px; color: #64748b; }
+
+        /* Scene/prop item */
+        .scene-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .scene-item .scene-name { font-weight: 600; font-size: 12px; }
+        .scene-item .scene-ep { font-size: 10px; color: #94a3b8; }
+
+        /* Emotion target mini chart */
+        .emotion-mini { height: 60px; margin: 4px 0; }
+
+        /* Source tracking bar */
+        .source-bar {
+            height: 16px;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            margin: 6px 0;
+        }
+        .source-bar .seg {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* Chat panel */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+        }
+        .msg {
+            margin-bottom: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        .msg-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .msg-ai .msg-avatar { background: #667eea; color: white; }
+        .msg-human .msg-avatar { background: #f59e0b; color: white; }
+        .msg-content {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 85%;
+        }
+        .msg-ai .msg-content { background: #f0f0ff; border-color: #c7d2fe; }
+        .msg-human .msg-content { background: #fffbeb; border-color: #fde68a; }
+
+        .msg-content code {
+            background: #1e293b;
+            color: #a5f3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .msg-content .suggestion-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin-top: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .msg-content .suggestion-card:hover { border-color: #667eea; }
+        .msg-content .suggestion-card .suggestion-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #667eea;
+        }
+        .msg-content .suggestion-card .suggestion-desc {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .chat-input-area {
+            padding: 10px 16px;
+            border-top: 1px solid #e2e8f0;
+            background: white;
+        }
+        .chat-input-row { display: flex; gap: 8px; }
+        .chat-input {
+            flex: 1;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            outline: none;
+            resize: none;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .chat-input:focus { border-color: #667eea; box-shadow: 0 0 0 2px rgba(102,126,234,0.2); }
+        .chat-send-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .chat-send-btn:hover { background: #5a6fd6; }
+
+        /* Right panel tabs */
+        .right-tabs {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .right-tab {
+            flex: 1;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #64748b;
+            transition: all 0.15s;
+        }
+        .right-tab:hover { color: #334155; background: #f8fafc; }
+        .right-tab.active { color: #667eea; border-bottom-color: #667eea; }
+        .right-tab-content { display: none; padding: 10px 12px; }
+        .right-tab-content.active { display: block; }
+
+        /* Storyboard shot card */
+        .shot-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+        .shot-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .shot-card.expanded { border-color: #667eea; }
+        .shot-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .shot-id { font-size: 12px; font-weight: 700; color: #667eea; font-family: 'JetBrains Mono', monospace; }
+        .shot-size-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .shot-detail { font-size: 11px; color: #475569; line-height: 1.6; }
+        .shot-detail .label { color: #94a3b8; font-weight: 600; }
+        .shot-dialogue {
+            background: #fefce8;
+            border-left: 3px solid #f59e0b;
+            padding: 4px 8px;
+            margin: 4px 0;
+            font-size: 12px;
+            border-radius: 0 4px 4px 0;
+        }
+        .shot-dialogue .speaker { font-weight: 700; color: #92400e; }
+        .shot-dialogue .style { font-size: 10px; color: #b45309; font-style: italic; }
+        .shot-narration {
+            background: #f0f9ff;
+            border-left: 3px solid #3b82f6;
+            padding: 4px 8px;
+            margin: 4px 0;
+            font-size: 12px;
+            border-radius: 0 4px 4px 0;
+            color: #1e40af;
+            font-style: italic;
+        }
+        .shot-emotion-bar {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .emotion-pip {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        /* Storyboard canvas */
+        .storyboard-canvas-container {
+            background: #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .storyboard-canvas-container canvas { display: block; width: 100%; }
+
+        /* Evaluation dashboard */
+        .eval-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .eval-card h5 { font-size: 12px; font-weight: 700; margin: 0 0 6px 0; color: #334155; }
+        .eval-metric {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .eval-metric .metric-label { font-size: 11px; color: #64748b; min-width: 72px; }
+        .eval-metric .metric-bar {
+            flex: 1;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .eval-metric .metric-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .eval-metric .metric-value { font-size: 11px; font-weight: 700; min-width: 36px; text-align: right; }
+
+        .eval-suggestion {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 11px;
+            color: #92400e;
+            margin-bottom: 4px;
+        }
+
+        /* Subtitle preview */
+        .subtitle-line {
+            display: flex;
+            gap: 8px;
+            padding: 4px 0;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 12px;
+        }
+        .subtitle-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #94a3b8; min-width: 90px; }
+        .subtitle-speaker { font-weight: 600; min-width: 36px; color: #667eea; }
+        .subtitle-text { color: #334155; }
+
+        /* Tool cards */
+        .tool-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .tool-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
+        .tool-card h5 { font-size: 12px; font-weight: 700; margin: 0 0 4px 0; }
+        .tool-card p { font-size: 11px; color: #64748b; margin: 0; }
+
+        /* Blocking canvas */
+        .blocking-canvas-container {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        /* Top bar */
+        .top-bar {
+            background: #1e293b;
+            color: white;
+            padding: 6px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+        .top-bar .title { font-weight: 700; }
+        .top-bar .subtitle { font-size: 11px; color: #94a3b8; }
+        .top-bar-btn {
+            background: #334155;
+            color: #e2e8f0;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .top-bar-btn:hover { background: #475569; }
+        .top-bar-btn.primary { background: #667eea; }
+
+        /* Episode selector */
+        .ep-selector {
+            display: flex;
+            gap: 4px;
+            padding: 6px 12px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            overflow-x: auto;
+        }
+        .ep-btn {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+            white-space: nowrap;
+        }
+        .ep-btn:hover { border-color: #667eea; color: #667eea; }
+        .ep-btn.active { background: #667eea; color: white; border-color: #667eea; }
+        .ep-btn .ep-status {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-left: 4px;
+        }
+
+        /* Quick actions bar */
+        .quick-actions {
+            display: flex;
+            gap: 6px;
+            padding: 6px 16px;
+            border-top: 1px solid #e2e8f0;
+            background: white;
+        }
+        .quick-action-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #475569;
+        }
+        .quick-action-btn:hover { border-color: #667eea; color: #667eea; }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:18px;">📖</span>
+        <div>
+            <div class="title">AI评书艺人 · 分镜工作台</div>
+            <div class="subtitle">千金归来 — 复仇阶梯模式 · 60集 · 女性18-34</div>
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button class="top-bar-btn" onclick="alert('版本管理功能（待实现）')">v3 版本</button>
+        <button class="top-bar-btn">保存</button>
+        <button class="top-bar-btn primary">导出全部</button>
+    </div>
+</div>
+
+<!-- Episode Selector -->
+<div class="ep-selector">
+    <button class="ep-btn active" onclick="selectEp(this, 1)">EP001 <span class="ep-status" style="background:#10b981;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 2)">EP002 <span class="ep-status" style="background:#10b981;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 3)">EP003 <span class="ep-status" style="background:#f59e0b;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 4)">EP004 <span class="ep-status" style="background:#94a3b8;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 5)">EP005 <span class="ep-status" style="background:#94a3b8;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 8)">EP008 ⚡付费点 <span class="ep-status" style="background:#ef4444;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 10)">EP010 <span class="ep-status" style="background:#94a3b8;"></span></button>
+    <button class="ep-btn" onclick="selectEp(this, 20)">EP020 <span class="ep-status" style="background:#94a3b8;"></span></button>
+</div>
+
+<!-- Three-Column Layout -->
+<div class="studio-layout">
+
+    <!-- ═══════════════ LEFT PANEL: Input Analysis ═══════════════ -->
+    <div class="panel panel-left" id="leftPanel">
+
+        <!-- Section: Novel Skeleton -->
+        <div class="section-header" onclick="toggleSection(this)">
+            <span>📚 网文骨架分析</span><span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+            <div style="font-size:11px;color:#475569;line-height:1.5;margin-bottom:8px;">
+                《重生千金：总裁别跑》——苏晚晴前世被陷害致死，重生回到被害前三年，凭借前世记忆步步为营夺回属于自己的一切。
+            </div>
+            <div style="font-size:11px;">
+                <div style="font-weight:600;color:#334155;margin-bottom:4px;">情节点</div>
+                <div class="scene-item">
+                    <div style="display:flex;justify-content:space-between;">
+                        <span class="scene-name">P01 家族压制</span>
+                        <span class="scene-ep">→ EP1-2</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;">苏晚晴回到苏氏集团，被保安/苏雅琪羞辱</div>
+                </div>
+                <div class="scene-item">
+                    <div style="display:flex;justify-content:space-between;">
+                        <span class="scene-name">P02 秘密武器</span>
+                        <span class="scene-ep">→ EP3-4</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;">王妈交给苏晚晴母亲遗留的股权文件</div>
+                </div>
+                <div class="scene-item">
+                    <div style="display:flex;justify-content:space-between;">
+                        <span class="scene-name">P03 首次反击</span>
+                        <span class="scene-ep">→ EP5</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;">苏晚晴在董事会上亮出股权证明</div>
+                </div>
+                <div class="scene-item">
+                    <div style="display:flex;justify-content:space-between;">
+                        <span style="font-size:11px;font-weight:600;color:#ef4444;">P04 ⚡身份揭露</span>
+                        <span class="scene-ep" style="color:#ef4444;">→ EP8 付费点</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;">陆景深公开支持苏晚晴，全场震惊</div>
+                </div>
+                <div class="scene-item">
+                    <div style="display:flex;justify-content:space-between;">
+                        <span class="scene-name">P05 反派反制</span>
+                        <span class="scene-ep">→ EP9-10</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;">苏雅琪联合外部势力打压苏晚晴</div>
+                </div>
+            </div>
+            <div style="margin-top:8px;">
+                <div style="font-size:11px;font-weight:600;color:#334155;margin-bottom:4px;">来源追踪</div>
+                <div class="source-bar">
+                    <div class="seg" style="width:62%;background:#10b981;">原著 62%</div>
+                    <div class="seg" style="width:28%;background:#f59e0b;">增补 28%</div>
+                    <div class="seg" style="width:10%;background:#6366f1;">调整 10%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section: Characters -->
+        <div class="section-header" onclick="toggleSection(this)">
+            <span>👥 角色卡</span><span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+            <div class="char-card active" onclick="toggleCharDetail(this, 'char1')">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ec4899,#f43f5e);display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">苏</div>
+                    <div>
+                        <div class="char-name">苏晚晴 <span style="font-size:10px;color:#94a3b8;">女主角</span></div>
+                        <div class="char-role">隐忍→霸气 · 外柔内刚</div>
+                    </div>
+                </div>
+                <div class="char-tags">
+                    <span class="char-tag">隐忍</span>
+                    <span class="char-tag">缜密</span>
+                    <span class="char-tag">重情义</span>
+                    <span class="char-tag">咬下唇</span>
+                </div>
+            </div>
+            <div id="char1-detail" class="char-detail" style="display:none;">
+                <h4>苏晚晴 · 完整角色卡</h4>
+                <div class="detail-row"><span class="detail-label">外形</span> 168cm，纤细有气场，黑色长发</div>
+                <div class="detail-row"><span class="detail-label">标志物</span> 母亲玉镯(前期隐藏)、定制西装(逆袭后)</div>
+                <div class="detail-row"><span class="detail-label">口头禅</span> "属于我的，谁也拿不走"</div>
+                <div class="detail-row"><span class="detail-label">愤怒</span> 眼神变冷，语速反而变慢</div>
+                <div class="detail-row"><span class="detail-label">紧张</span> 咬下唇，手指无意识摸玉镯</div>
+                <div class="detail-row"><span class="detail-label">嘲讽</span> 嘴角微挑，声音变甜</div>
+                <div style="margin-top:6px;">
+                    <div style="font-size:11px;font-weight:600;color:#334155;margin-bottom:3px;">服装变化线</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                        <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#e5e7eb;">EP1-5 灰白便装</span>
+                        <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#93c5fd;">EP6-15 深蓝职业装</span>
+                        <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#fca5a5;">EP16-40 红黑礼服</span>
+                        <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#c084fc;color:white;">EP41-60 女王范儿</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="char-card" onclick="toggleCharDetail(this, 'char2')">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">陆</div>
+                    <div>
+                        <div class="char-name">陆景深 <span style="font-size:10px;color:#94a3b8;">男主角</span></div>
+                        <div class="char-role">冷面总裁 · 外冷内热</div>
+                    </div>
+                </div>
+                <div class="char-tags">
+                    <span class="char-tag">高冷</span>
+                    <span class="char-tag">守护</span>
+                    <span class="char-tag">商业天才</span>
+                </div>
+            </div>
+            <div id="char2-detail" class="char-detail" style="display:none;">
+                <h4>陆景深 · 完整角色卡</h4>
+                <div class="detail-row"><span class="detail-label">外形</span> 185cm，棱角分明，总穿黑色三件套</div>
+                <div class="detail-row"><span class="detail-label">标志物</span> 万宝龙钢笔(权力符号)、黑卡</div>
+                <div class="detail-row"><span class="detail-label">口头禅</span> "我说过的话，从不收回"</div>
+                <div class="detail-row"><span class="detail-label">愤怒</span> 不发火，沉默→一字一句</div>
+                <div class="detail-row"><span class="detail-label">温柔</span> 只对苏晚晴，声音降低八度</div>
+            </div>
+
+            <div class="char-card" onclick="toggleCharDetail(this, 'char3')">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#7c3aed);display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">苏</div>
+                    <div>
+                        <div class="char-name">苏雅琪 <span style="font-size:10px;color:#94a3b8;">反派</span></div>
+                        <div class="char-role">心机深沉 · 同父异母妹妹</div>
+                    </div>
+                </div>
+                <div class="char-tags">
+                    <span class="char-tag">心机</span>
+                    <span class="char-tag">伪装</span>
+                    <span class="char-tag">嫉妒</span>
+                </div>
+            </div>
+            <div id="char3-detail" class="char-detail" style="display:none;">
+                <h4>苏雅琪 · 完整角色卡</h4>
+                <div class="detail-row"><span class="detail-label">外形</span> 165cm，精致妆容，喜欢名牌</div>
+                <div class="detail-row"><span class="detail-label">标志物</span> 红色指甲(攻击性)、手机(密谋工具)</div>
+                <div class="detail-row"><span class="detail-label">口头禅</span> "姐姐，你太天真了"</div>
+                <div class="detail-row"><span class="detail-label">伪装</span> 人前甜美，人后阴冷</div>
+                <div class="detail-row"><span class="detail-label">恐惧</span> 被揭穿时瞳孔微缩，手指捏紧裙摆</div>
+            </div>
+        </div>
+
+        <!-- Section: Scene/Props -->
+        <div class="section-header" onclick="toggleSection(this)">
+            <span>🎬 场景/道具库</span><span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+            <div class="scene-item">
+                <div class="scene-name">苏氏集团大楼</div>
+                <div class="scene-ep">EP1, EP5, EP8</div>
+                <div style="font-size:10px;color:#94a3b8;margin-top:2px;">大理石/金色灯光/玻璃幕墙 · 道具：前台logo墙、电梯、监控</div>
+            </div>
+            <div class="scene-item">
+                <div class="scene-name">总裁办公室</div>
+                <div class="scene-ep">EP2, EP6, EP9</div>
+                <div style="font-size:10px;color:#94a3b8;margin-top:2px;">落地窗城市夜景/暗色调 · 道具：办公桌、合同、万宝龙钢笔</div>
+            </div>
+            <div class="scene-item">
+                <div class="scene-name">豪华别墅客厅</div>
+                <div class="scene-ep">EP3, EP7</div>
+                <div style="font-size:10px;color:#94a3b8;margin-top:2px;">水晶吊灯/紧张气氛 · 道具：全家福、红酒、遗嘱文件</div>
+            </div>
+            <div class="scene-item">
+                <div class="scene-name">雨中街道</div>
+                <div class="scene-ep">EP12</div>
+                <div style="font-size:10px;color:#94a3b8;margin-top:2px;">暴雨/路灯/积水倒影 · 道具：雨伞、旧照片</div>
+            </div>
+        </div>
+
+        <!-- Section: Emotion Target -->
+        <div class="section-header" onclick="toggleSection(this)">
+            <span>🎯 情感目标</span><span class="arrow">▼</span>
+        </div>
+        <div class="section-body">
+            <div style="font-size:11px;margin-bottom:4px;">
+                <span style="font-weight:600;">模式：</span>复仇阶梯 · 
+                <span style="font-weight:600;">付费卡点：</span>EP8-10
+            </div>
+            <div id="emotionMiniChart" class="emotion-mini"></div>
+            <div style="font-size:10px;color:#94a3b8;">
+                当前集(EP001)目标：爽度 6.5 · Hook suspense · 情感流 oppression→catharsis→surprise
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ CENTER PANEL: Chat ═══════════════ -->
+    <div class="panel panel-center">
+        <div class="chat-messages" id="chatMessages">
+            <!-- System message -->
+            <div class="msg msg-ai">
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-content">
+                    <div style="font-weight:600;margin-bottom:4px;">已加载项目「千金归来」</div>
+                    <div style="font-size:12px;color:#64748b;">
+                        网文骨架已分析完毕（5个核心情节点、4个角色、4个场景）。
+                        当前显示 EP001「命运的转折」的分镜剧本。
+                    </div>
+                    <div class="suggestion-card" onclick="aiGenerate()">
+                        <div class="suggestion-title">💡 建议操作</div>
+                        <div class="suggestion-desc">点击生成 EP003 的分镜剧本</div>
+                    </div>
+                    <div class="suggestion-card" onclick="aiEvaluate()">
+                        <div class="suggestion-title">📊 评估当前集</div>
+                        <div class="suggestion-desc">对 EP001 进行爽度/Hook/角色一致性评估</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI generated screenplay result -->
+            <div class="msg msg-ai">
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-content">
+                    <div style="font-weight:600;margin-bottom:6px;">EP001「命运的转折」分镜剧本已生成</div>
+                    <div style="font-size:12px;line-height:1.8;">
+                        <strong>3个场景 · 8个镜头 · 时长估算 1:25</strong><br>
+                        <br>
+                        <strong>S01 大楼门前</strong> (0:00-0:15) — 3个镜头<br>
+                        <code>ELS</code> → <code>MS</code> → <code>CU</code> 景别递进<br>
+                        关键台词：<em>"苏晚晴。苏氏集团，苏。"</em>
+                        <div style="margin-top:6px;">
+                            <strong>S02 大堂对峙</strong> (0:15-0:55) — 3个镜头<br>
+                            <code>MS</code> 对话 → <code>CU</code> 反应 → <code>OTS</code> 对峙<br>
+                            Pivot点：苏雅琪嘲讽→苏晚晴反击 (Δ=4.2)
+                        </div>
+                        <div style="margin-top:6px;">
+                            <strong>S03 电梯悬念</strong> (0:55-1:25) — 2个镜头<br>
+                            <code>CU</code> 按钮 → <code>ECU</code> 眼神<br>
+                            Hook: 电梯门关上，苏晚晴嘴角浮现冷笑
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:4px;margin-top:8px;">
+                        <button style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid #10b981;background:#ecfdf5;color:#065f46;cursor:pointer;" onclick="acceptSuggestion()">✓ 接受</button>
+                        <button style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid #e2e8f0;background:white;cursor:pointer;">✏️ 编辑</button>
+                        <button style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid #e2e8f0;background:white;cursor:pointer;" onclick="aiRegenerate()">🔄 重生成</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User message -->
+            <div class="msg msg-human">
+                <div class="msg-avatar">👤</div>
+                <div class="msg-content">
+                    苏晚晴在S02的台词"找谁？我回自己的公司，还需要找谁？"太直白了，增加一点嘲讽感和压迫感，让她不直接回答保安的问题。
+                </div>
+            </div>
+
+            <!-- AI response with suggestion -->
+            <div class="msg msg-ai">
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-content">
+                    <div style="font-weight:600;margin-bottom:4px;">已修改 S02-02 苏晚晴台词</div>
+                    <div style="font-size:12px;line-height:1.8;">
+                        <strong>原台词：</strong>"找谁？我回自己的公司，还需要找谁？"<br>
+                        <strong>新台词：</strong>"找谁？"<br>
+                        <span style="color:#64748b;">（停顿1.5秒，保安刚要开口，苏晚晴已经绕过他往里走）</span><br>
+                        <span style="color:#64748b;">"不用找了。我自己进去。"</span>
+                    </div>
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:6px 8px;margin-top:6px;font-size:11px;color:#166534;">
+                        ✓ 情感分析更新：嘲讽 +3 (3→6)，压迫感 +2 (4→6)<br>
+                        ✓ 对白风格：符合角色卡「嘴角微挑，声音变甜」的嘲讽模式<br>
+                        ✓ 爽度值提升：6.2 → 6.8（Pivot delta 增加 0.6）
+                    </div>
+                </div>
+            </div>
+
+            <!-- Evaluation result -->
+            <div class="msg msg-ai" id="evalResult" style="display:none;">
+                <div class="msg-avatar">📊</div>
+                <div class="msg-content">
+                    <div style="font-weight:600;margin-bottom:6px;">EP001 评估报告</div>
+                    <div style="font-size:12px;">
+                        <div style="display:flex;gap:12px;margin-bottom:6px;">
+                            <div style="text-align:center;">
+                                <div style="font-size:20px;font-weight:700;color:#ef4444;">7.2</div>
+                                <div style="font-size:10px;color:#94a3b8;">爽度</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:20px;font-weight:700;color:#3b82f6;">4.1</div>
+                                <div style="font-size:10px;color:#94a3b8;">Hook</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:20px;font-weight:700;color:#10b981;">92%</div>
+                                <div style="font-size:10px;color:#94a3b8;">角色一致性</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:20px;font-weight:700;color:#8b5cf6;">8.5</div>
+                                <div style="font-size:10px;color:#94a3b8;">视觉可行</div>
+                            </div>
+                        </div>
+                        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:11px;color:#92400e;">
+                            💡 建议：S01-01增加细节——苏晚晴手中握着旧照片，增加情感层次
+                        </div>
+                        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:11px;color:#92400e;margin-top:4px;">
+                            💡 建议：集尾增加双线悬念——大楼内某人从监控中看到苏晚晴
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="chat-input-area">
+            <div class="chat-input-row">
+                <textarea class="chat-input" id="chatInput" rows="1" placeholder="输入指令：如「优化EP3的爽度值」「生成EP5分镜剧本」..." onkeydown="handleChatKey(event)"></textarea>
+                <button class="chat-send-btn" onclick="sendChat()">发送</button>
+            </div>
+            <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">
+                <button class="quick-action-btn" onclick="quickAction('生成下一集')">▶ 生成下一集</button>
+                <button class="quick-action-btn" onclick="quickAction('全局评估')">📊 全局评估</button>
+                <button class="quick-action-btn" onclick="quickAction('角色一致性检查')">🎭 角色一致性</button>
+                <button class="quick-action-btn" onclick="quickAction('优化爽度值')">🔥 优化爽度</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ RIGHT PANEL: Output ═══════════════ -->
+    <div class="panel panel-right">
+        <div class="right-tabs">
+            <div class="right-tab active" onclick="switchRightTab(this, 'tab-storyboard')">📖 分镜</div>
+            <div class="right-tab" onclick="switchRightTab(this, 'tab-evaluation')">📊 评估</div>
+            <div class="right-tab" onclick="switchRightTab(this, 'tab-subtitle')">🎭 字幕</div>
+            <div class="right-tab" onclick="switchRightTab(this, 'tab-tools')">🛠️ 工具</div>
+        </div>
+
+        <!-- Tab: Storyboard -->
+        <div class="right-tab-content active" id="tab-storyboard">
+            <!-- Storyboard Canvas -->
+            <div class="storyboard-canvas-container">
+                <canvas id="storyboardCanvas" width="356" height="200"></canvas>
+            </div>
+
+            <!-- Shot Cards -->
+            <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">
+                S01 大楼门前 <span style="font-size:10px;color:#94a3b8;font-weight:400;">0:00 - 0:15</span>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)">
+                <div class="shot-header">
+                    <span class="shot-id">S01-01</span>
+                    <span class="shot-size-badge" style="background:#dbeafe;color:#1e40af;">远景 ELS</span>
+                    <span style="font-size:10px;color:#94a3b8;">3.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 固定 | <span class="label">角度</span> 仰拍</div>
+                    <div><span class="label">主体</span> 苏氏集团大楼全景</div>
+                    <div class="shot-narration">🎙️ "三年了。"</div>
+                    <div class="shot-emotion-bar">
+                        <span class="emotion-pip" style="background:#fef3c7;color:#92400e;">平静 4</span>
+                        <span class="emotion-pip" style="background:#fce7f3;color:#9d174d;">复杂 4</span>
+                    </div>
+                </div>
+                <div class="shot-detail" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;">
+                    <div><span class="label">音效</span> 城市环境音，低沉弦乐渐入</div>
+                    <div><span class="label">转场</span> 淡入(fade_in)</div>
+                    <div><span class="label">道具</span> 苏氏集团大楼</div>
+                    <div><span class="label">光线</span> 冷色调自然光，阴天</div>
+                </div>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)">
+                <div class="shot-header">
+                    <span class="shot-id">S01-02</span>
+                    <span class="shot-size-badge" style="background:#dcfce7;color:#166534;">中景 MS</span>
+                    <span style="font-size:10px;color:#94a3b8;">4.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 缓推(slow_push) | <span class="label">角度</span> 过肩</div>
+                    <div><span class="label">主体</span> 苏晚晴背影</div>
+                    <div><span class="label">动作</span> 站在大楼前，缓缓抬头仰望</div>
+                    <div class="shot-emotion-bar">
+                        <span class="emotion-pip" style="background:#fef3c7;color:#92400e;">平静 4</span>
+                        <span class="emotion-pip" style="background:#fee2e2;color:#991b1b;">压抑 6</span>
+                    </div>
+                </div>
+                <div class="shot-detail" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;">
+                    <div><span class="label">音效</span> 弦乐渐强</div>
+                    <div><span class="label">转场</span> 硬切(cut)</div>
+                    <div><span class="label">道具</span> 朴素外套，母亲玉镯(隐约可见)</div>
+                </div>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)">
+                <div class="shot-header">
+                    <span class="shot-id">S01-03</span>
+                    <span class="shot-size-badge" style="background:#fce7f3;color:#9d174d;">特写 CU</span>
+                    <span style="font-size:10px;color:#94a3b8;">4.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 缓推(slow_push) | <span class="label">角度</span> 平视</div>
+                    <div><span class="label">主体</span> 苏晚晴面部</div>
+                    <div><span class="label">动作</span> 眼神从平静转为坚定，嘴角微微抿紧</div>
+                    <div class="shot-dialogue">
+                        <span class="speaker">苏晚晴</span> <span class="style">（低语，极轻，每个字都充满重量）</span><br>
+                        "我回来了。"
+                    </div>
+                    <div class="shot-emotion-bar">
+                        <span class="emotion-pip" style="background:#dcfce7;color:#166534;">catharsis 7</span>
+                        <span class="emotion-pip" style="background:#fef3c7;color:#92400e;">压抑 3</span>
+                    </div>
+                </div>
+                <div class="shot-detail" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;">
+                    <div><span class="label">音效</span> 弦乐高点后突然安静，只剩风声</div>
+                    <div><span class="label">转场</span> 硬切(cut)</div>
+                    <div><span class="label">潜台词</span> 不只是回到大楼，是回到她的人生。三年的隐忍在此刻凝聚为力量。</div>
+                </div>
+            </div>
+
+            <div style="font-size:12px;font-weight:700;color:#334155;margin:12px 0 6px;">
+                S02 大堂对峙 <span style="font-size:10px;color:#94a3b8;font-weight:400;">0:15 - 0:55</span>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)">
+                <div class="shot-header">
+                    <span class="shot-id">S02-01</span>
+                    <span class="shot-size-badge" style="background:#dcfce7;color:#166534;">中景 MS</span>
+                    <span style="font-size:10px;color:#94a3b8;">6.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 固定 | <span class="label">角度</span> 平视</div>
+                    <div><span class="label">主体</span> 保安与苏晚晴</div>
+                    <div class="shot-dialogue">
+                        <span class="speaker">保安</span> "小姐，请问您找谁？"
+                    </div>
+                    <div class="shot-dialogue">
+                        <span class="speaker">苏晚晴</span> <span class="style">（不看他，径直往前走）</span><br>
+                        "找谁？"（停顿1.5秒）"不用找了。我自己进去。"
+                    </div>
+                </div>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)">
+                <div class="shot-header">
+                    <span class="shot-id">S02-02</span>
+                    <span class="shot-size-badge" style="background:#fce7f3;color:#9d174d;">特写 CU</span>
+                    <span style="font-size:10px;color:#94a3b8;">3.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 快推 | <span class="label">角度</span> 平视</div>
+                    <div><span class="label">主体</span> 保安面部反应</div>
+                    <div><span class="label">动作</span> 保安愣住，张嘴想说什么又咽回去</div>
+                    <div class="shot-emotion-bar">
+                        <span class="emotion-pip" style="background:#fef3c7;color:#92400e;">惊讶 5</span>
+                        <span class="emotion-pip" style="background:#fee2e2;color:#991b1b;">压迫感 6</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size:12px;font-weight:700;color:#334155;margin:12px 0 6px;">
+                S03 电梯悬念 <span style="font-size:10px;color:#94a3b8;font-weight:400;">0:55 - 1:25</span>
+                <span style="font-size:10px;color:#ef4444;margin-left:4px;">⚡ Hook</span>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)">
+                <div class="shot-header">
+                    <span class="shot-id">S03-01</span>
+                    <span class="shot-size-badge" style="background:#fce7f3;color:#9d174d;">特写 CU</span>
+                    <span style="font-size:10px;color:#94a3b8;">4.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 固定 | <span class="label">角度</span> 平视</div>
+                    <div><span class="label">主体</span> 苏晚晴的手按电梯按钮</div>
+                    <div><span class="label">动作</span> 手指按下顶楼按钮——董事长楼层</div>
+                    <div class="shot-emotion-bar">
+                        <span class="emotion-pip" style="background:#dcfce7;color:#166534;">surprise 6</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="shot-card" onclick="toggleShotDetail(this)" style="border-color:#ef4444;">
+                <div class="shot-header">
+                    <span class="shot-id">S03-02</span>
+                    <span class="shot-size-badge" style="background:#fee2e2;color:#991b1b;">大特写 ECU</span>
+                    <span style="font-size:10px;color:#94a3b8;">5.0s</span>
+                </div>
+                <div class="shot-detail">
+                    <div><span class="label">运镜</span> 缓推 | <span class="label">角度</span> 平视</div>
+                    <div><span class="label">主体</span> 苏晚晴眼睛 + 电梯门倒影</div>
+                    <div><span class="label">动作</span> 电梯门缓缓关上，苏晚晴嘴角浮现一丝冷笑</div>
+                    <div class="shot-dialogue">
+                        <span class="speaker">旁白</span> <span class="style">（画外音）</span><br>
+                        "属于我的，谁也拿不走。"
+                    </div>
+                    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:4px 6px;font-size:10px;color:#991b1b;margin-top:4px;">
+                        ⚡ Hook: Suspense 4.2 — 电梯门关上，观众不知道顶楼会发生什么
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Evaluation -->
+        <div class="right-tab-content" id="tab-evaluation">
+            <div id="evalChart" style="height:200px;margin-bottom:10px;"></div>
+
+            <div class="eval-card">
+                <h5>📊 核心指标</h5>
+                <div class="eval-metric">
+                    <span class="metric-label">爽度值</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:72%;background:linear-gradient(90deg,#ef4444,#f97316);"></div></div>
+                    <span class="metric-value" style="color:#ef4444;">7.2</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label">Hook强度</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:82%;background:linear-gradient(90deg,#3b82f6,#6366f1);"></div></div>
+                    <span class="metric-value" style="color:#3b82f6;">4.1/5</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label">角色一致性</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:92%;background:linear-gradient(90deg,#10b981,#059669);"></div></div>
+                    <span class="metric-value" style="color:#10b981;">92%</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label">对白自然度</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:78%;background:linear-gradient(90deg,#f59e0b,#d97706);"></div></div>
+                    <span class="metric-value" style="color:#f59e0b;">7.8</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label">视觉可行性</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:85%;background:linear-gradient(90deg,#8b5cf6,#7c3aed);"></div></div>
+                    <span class="metric-value" style="color:#8b5cf6;">8.5</span>
+                </div>
+            </div>
+
+            <div class="eval-card">
+                <h5>⚡ Pivot 点分析</h5>
+                <div style="font-size:11px;line-height:1.8;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="background:#ef4444;color:white;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;">0:10</span>
+                        <span>oppression:4 → catharsis:7</span>
+                        <span style="font-weight:700;color:#ef4444;">Δ=3.0</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;margin-left:4px;">trigger: 苏晚晴决定不再隐藏身份</div>
+                    <div style="font-size:10px;color:#166534;margin-left:4px;">✓ 合理（前世记忆铺垫）+ 意外（观众预期她会犹豫）</div>
+
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+                        <span style="background:#f59e0b;color:white;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;">0:42</span>
+                        <span>嘲讽:6 → 愤怒:7</span>
+                        <span style="font-weight:700;color:#f59e0b;">Δ=3.5</span>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;margin-left:4px;">trigger: 苏雅琪当众嘲讽苏晚晴</div>
+                </div>
+            </div>
+
+            <div class="eval-card">
+                <h5>💡 改进建议</h5>
+                <div class="eval-suggestion">
+                    💡 S01-01 建议增加细节：苏晚晴手中握着一个旧照片，增加情感层次
+                </div>
+                <div class="eval-suggestion">
+                    💡 集尾建议增加双线悬念：大楼内某人从监控中看到苏晚晴
+                </div>
+                <div class="eval-suggestion">
+                    💡 S02的苏雅琪出场可以更早，让反派在观众心中建立存在感
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Subtitle -->
+        <div class="right-tab-content" id="tab-subtitle">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div style="font-size:12px;font-weight:700;">Mock字幕 · EP001</div>
+                <div style="display:flex;gap:4px;">
+                    <button class="top-bar-btn" style="font-size:10px;">导出SRT</button>
+                    <button class="top-bar-btn" style="font-size:10px;">导出ASS</button>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-bottom:10px;">
+                <div style="text-align:center;">
+                    <div style="font-size:16px;font-weight:700;color:#334155;">8</div>
+                    <div style="font-size:10px;color:#94a3b8;">总行数</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:16px;font-weight:700;color:#334155;">67</div>
+                    <div style="font-size:10px;color:#94a3b8;">总字数</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:16px;font-weight:700;color:#667eea;">62%</div>
+                    <div style="font-size:10px;color:#94a3b8;">对白占比</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:16px;font-weight:700;color:#3b82f6;">38%</div>
+                    <div style="font-size:10px;color:#94a3b8;">旁白占比</div>
+                </div>
+            </div>
+
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:01,000</span>
+                <span class="subtitle-speaker">旁白</span>
+                <span class="subtitle-text">三年了。</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:08,000</span>
+                <span class="subtitle-speaker">旁白</span>
+                <span class="subtitle-text">苏氏集团大楼，三年未变。</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:11,000</span>
+                <span class="subtitle-speaker">苏晚晴</span>
+                <span class="subtitle-text">（低语）我回来了。</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:16,000</span>
+                <span class="subtitle-speaker">保安</span>
+                <span class="subtitle-text">小姐，请问您找谁？</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:18,500</span>
+                <span class="subtitle-speaker">苏晚晴</span>
+                <span class="subtitle-text">找谁？</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:21,000</span>
+                <span class="subtitle-speaker">苏晚晴</span>
+                <span class="subtitle-text">不用找了。我自己进去。</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:42,000</span>
+                <span class="subtitle-speaker">苏雅琪</span>
+                <span class="subtitle-text">姐姐？你怎么来了？我还以为你这辈子都不会回来了呢。</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:00:48,000</span>
+                <span class="subtitle-speaker">苏晚晴</span>
+                <span class="subtitle-text">怕了？</span>
+            </div>
+            <div class="subtitle-line">
+                <span class="subtitle-time">00:01:18,000</span>
+                <span class="subtitle-speaker">旁白</span>
+                <span class="subtitle-text">属于我的，谁也拿不走。</span>
+            </div>
+
+            <div style="margin-top:12px;">
+                <div style="font-size:11px;font-weight:600;color:#334155;margin-bottom:4px;">角色台词量</div>
+                <div class="eval-metric">
+                    <span class="metric-label" style="min-width:48px;">苏晚晴</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:55%;background:#ec4899;"></div></div>
+                    <span class="metric-value">55%</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label" style="min-width:48px;">旁白</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:30%;background:#3b82f6;"></div></div>
+                    <span class="metric-value">30%</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label" style="min-width:48px;">保安</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:8%;background:#94a3b8;"></div></div>
+                    <span class="metric-value">8%</span>
+                </div>
+                <div class="eval-metric">
+                    <span class="metric-label" style="min-width:48px;">苏雅琪</span>
+                    <div class="metric-bar"><div class="metric-fill" style="width:7%;background:#a855f7;"></div></div>
+                    <span class="metric-value">7%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Tools -->
+        <div class="right-tab-content" id="tab-tools">
+            <!-- Blocking/动线 Demo -->
+            <div class="tool-card" onclick="showBlockingDemo()">
+                <h5>📍 动线演示</h5>
+                <p>俯视图展示角色在场景中的移动路径</p>
+            </div>
+            <div id="blockingDemo" style="display:none;">
+                <div class="blocking-canvas-container">
+                    <canvas id="blockingCanvas" width="356" height="250"></canvas>
+                </div>
+                <div style="font-size:10px;color:#94a3b8;margin-bottom:8px;">
+                    🔴 苏晚晴 &nbsp; 🔵 保安 &nbsp; 🟣 苏雅琪 &nbsp; ── 移动路径 &nbsp; ○ 起始位置
+                </div>
+            </div>
+
+            <!-- Storyboard Preview -->
+            <div class="tool-card" onclick="showStoryboardPreview()">
+                <h5>🎨 分镜草图预览</h5>
+                <p>Canvas绘制的竖屏分镜构图示意</p>
+            </div>
+            <div id="storyboardPreview" style="display:none;">
+                <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;">
+                    <div style="flex-shrink:0;text-align:center;">
+                        <canvas id="sketchCanvas1" width="90" height="160" style="border:1px solid #e2e8f0;border-radius:4px;"></canvas>
+                        <div style="font-size:9px;color:#94a3b8;margin-top:2px;">S01-01 ELS</div>
+                    </div>
+                    <div style="flex-shrink:0;text-align:center;">
+                        <canvas id="sketchCanvas2" width="90" height="160" style="border:1px solid #e2e8f0;border-radius:4px;"></canvas>
+                        <div style="font-size:9px;color:#94a3b8;margin-top:2px;">S01-02 MS</div>
+                    </div>
+                    <div style="flex-shrink:0;text-align:center;">
+                        <canvas id="sketchCanvas3" width="90" height="160" style="border:1px solid #e2e8f0;border-radius:4px;"></canvas>
+                        <div style="font-size:9px;color:#94a3b8;margin-top:2px;">S01-03 CU</div>
+                    </div>
+                    <div style="flex-shrink:0;text-align:center;">
+                        <canvas id="sketchCanvas4" width="90" height="160" style="border:1px solid #e2e8f0;border-radius:4px;"></canvas>
+                        <div style="font-size:9px;color:#94a3b8;margin-top:2px;">S03-02 ECU</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3D Scene -->
+            <div class="tool-card">
+                <h5>🏗️ 场景3D展示</h5>
+                <p>Three.js渲染的简化3D场景（Phase 4实现）</p>
+                <div style="background:#f1f5f9;border-radius:6px;padding:20px;text-align:center;margin-top:6px;">
+                    <div style="font-size:24px;">🏗️</div>
+                    <div style="font-size:11px;color:#94a3b8;">待实现 · 需要Three.js集成</div>
+                </div>
+            </div>
+
+            <!-- Mock Animation -->
+            <div class="tool-card">
+                <h5>🎬 Mock动画</h5>
+                <p>Canvas动画模拟镜头运动（Phase 3实现）</p>
+                <div style="background:#f1f5f9;border-radius:6px;padding:20px;text-align:center;margin-top:6px;">
+                    <div style="font-size:24px;">🎬</div>
+                    <div style="font-size:11px;color:#94a3b8;">待实现 · 需要Canvas动画引擎</div>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <div class="tool-card">
+                <h5>📤 导出</h5>
+                <p>导出完整剧本包</p>
+                <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">
+                    <button class="quick-action-btn" style="font-size:10px;">📋 完整剧本(ZIP)</button>
+                    <button class="quick-action-btn" style="font-size:10px;">📄 分镜PDF</button>
+                    <button class="quick-action-btn" style="font-size:10px;">🎭 角色卡PDF</button>
+                    <button class="quick-action-btn" style="font-size:10px;">📊 评估报告</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════ Toggle Sections ═══════════════
+function toggleSection(header) {
+    header.classList.toggle('collapsed');
+    const body = header.nextElementSibling;
+    body.classList.toggle('hidden');
+}
+
+function toggleCharDetail(card, id) {
+    const detail = document.getElementById(id + '-detail');
+    if (detail) {
+        detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+    }
+    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+}
+
+function toggleShotDetail(card) {
+    const details = card.querySelectorAll('.shot-detail');
+    details.forEach((d, i) => {
+        if (i > 0) d.style.display = d.style.display === 'none' ? 'block' : 'none';
+    });
+    card.classList.toggle('expanded');
+}
+
+// ═══════════════ Episode Selector ═══════════════
+function selectEp(btn, ep) {
+    document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// ═══════════════ Right Panel Tabs ═══════════════
+function switchRightTab(tab, contentId) {
+    document.querySelectorAll('.right-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.right-tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(contentId).classList.add('active');
+
+    if (contentId === 'tab-evaluation') initEvalChart();
+}
+
+// ═══════════════ Chat Functions ═══════════════
+function sendChat() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage('human', text);
+    input.value = '';
+
+    setTimeout(() => {
+        addMessage('ai', generateAIResponse(text));
+    }, 800);
+}
+
+function handleChatKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChat();
+    }
+}
+
+function quickAction(action) {
+    addMessage('human', action);
+    setTimeout(() => {
+        if (action === '全局评估') {
+            aiEvaluate();
+        } else {
+            addMessage('ai', generateAIResponse(action));
+        }
+    }, 600);
+}
+
+function addMessage(type, content) {
+    const container = document.getElementById('chatMessages');
+    const avatar = type === 'ai' ? '🤖' : '👤';
+    const div = document.createElement('div');
+    div.className = `msg msg-${type}`;
+    div.innerHTML = `
+        <div class="msg-avatar">${avatar}</div>
+        <div class="msg-content">${content}</div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function generateAIResponse(input) {
+    if (input.includes('生成') && input.includes('集')) {
+        return `<div style="font-weight:600;">正在生成分镜剧本...</div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px;">
+                已完成骨架提取和模式映射，正在调用 ScreenplayAgent 生成分镜...
+            </div>
+            <div style="margin-top:6px;">
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:6px 8px;font-size:11px;color:#166534;">
+                    ✓ 分镜生成完成 · 3个场景 · 7个镜头 · 预计时长 1:20
+                </div>
+            </div>`;
+    }
+    if (input.includes('优化') || input.includes('爽度')) {
+        return `<div style="font-weight:600;">分析爽度优化空间...</div>
+            <div style="font-size:12px;margin-top:4px;">
+                当前爽度值 7.2，目标 7.5。<br>
+                建议在 S02 的 Pivot 点增加一个微反转：<br>
+                苏雅琪以为自己占了上风，但苏晚晴的眼神暗示她已经知道更多。
+            </div>
+            <div class="suggestion-card" onclick="acceptSuggestion()">
+                <div class="suggestion-title">✓ 应用此优化</div>
+                <div class="suggestion-desc">预计爽度值提升至 7.6</div>
+            </div>`;
+    }
+    if (input.includes('角色一致')) {
+        return `<div style="font-weight:600;">角色一致性检查完成</div>
+            <div style="font-size:12px;margin-top:4px;">
+                ✅ 苏晚晴：92% — 台词风格与角色卡一致<br>
+                ✅ 保安：100% — 配角，行为符合设定<br>
+                ⚠️ 苏雅琪：85% — 台词"你怎么来了"略显平淡，建议增加伪装感
+            </div>`;
+    }
+    return `<div style="font-size:12px;">收到指令：「${input}」<br><br>
+        我正在处理中...（Mock模式，实际运行时将调用 LLM API）</div>`;
+}
+
+function aiGenerate() {
+    addMessage('human', '生成EP003的分镜剧本');
+    setTimeout(() => addMessage('ai', generateAIResponse('生成EP003')), 600);
+}
+
+function aiEvaluate() {
+    document.getElementById('evalResult').style.display = 'flex';
+    addMessage('human', '对EP001进行全局评估');
+    setTimeout(() => {
+        addMessage('ai', `<div style="font-weight:600;">EP001 评估完成</div>
+            <div style="font-size:12px;margin-top:4px;">
+                综合评分 <strong>7.8/10</strong><br>
+                爽度 7.2 | Hook 4.1 | 角色一致性 92% | 视觉可行性 8.5<br><br>
+                3条改进建议已生成。请查看右侧「评估」Tab 了解详情。
+            </div>`);
+        switchRightTab(document.querySelectorAll('.right-tab')[1], 'tab-evaluation');
+    }, 800);
+}
+
+function aiRegenerate() {
+    addMessage('ai', `<div style="font-weight:600;">正在重新生成...</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px;">ScreenplayAgent 正在根据修改反馈重新生成分镜...</div>`);
+}
+
+function acceptSuggestion() {
+    addMessage('ai', `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:6px 8px;font-size:11px;color:#166534;">
+        ✓ 已应用修改 · 版本已自动保存为 v4<br>
+        ✓ 爽度值更新：7.2 → 7.6
+    </div>`);
+}
+
+// ═══════════════ Storyboard Canvas ═══════════════
+function drawStoryboard() {
+    const canvas = document.getElementById('storyboardCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Background
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, w, h);
+
+    // Sky gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.6);
+    skyGrad.addColorStop(0, '#1e293b');
+    skyGrad.addColorStop(1, '#334155');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h * 0.6);
+
+    // Building
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(w * 0.2, h * 0.1, w * 0.6, h * 0.55);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(w * 0.2, h * 0.1, w * 0.6, h * 0.55);
+
+    // Windows
+    for (let row = 0; row < 6; row++) {
+        for (let col = 0; col < 5; col++) {
+            const wx = w * 0.22 + col * (w * 0.11);
+            const wy = h * 0.14 + row * (h * 0.08);
+            ctx.fillStyle = row < 3 ? '#334155' : '#475569';
+            ctx.fillRect(wx, wy, w * 0.08, h * 0.05);
+        }
+    }
+
+    // Ground
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, h * 0.65, w, h * 0.35);
+
+    // Character silhouette
+    ctx.fillStyle = '#ec4899';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.5, h * 0.72, 8, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ec4899';
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.62, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px Noto Sans SC';
+    ctx.fillText('S01-01 · 远景 · 苏氏集团大楼', 8, h - 8);
+
+    // Vertical frame indicator (9:16)
+    ctx.strokeStyle = '#667eea';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(w * 0.35, 0, w * 0.3, h);
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#667eea';
+    ctx.font = '9px Noto Sans SC';
+    ctx.fillText('9:16 竖屏区域', w * 0.35 + 4, 12);
+}
+
+// ═══════════════ Blocking Demo ═══════════════
+function showBlockingDemo() {
+    const el = document.getElementById('blockingDemo');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el.style.display === 'block') drawBlocking();
+}
+
+function drawBlocking() {
+    const canvas = document.getElementById('blockingCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, w, h);
+
+    // Room outline
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, w - 40, h - 40);
+
+    // Door
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(20, h * 0.4, 8, 40);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px Noto Sans SC';
+    ctx.fillText('入口', 4, h * 0.4 + 24);
+
+    // Elevator
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(w - 28, h * 0.3, 8, 50);
+    ctx.fillText('电梯', w - 28, h * 0.3 - 4);
+
+    // Front desk
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(w * 0.35, h * 0.15, w * 0.3, 20);
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('前台', w * 0.45, h * 0.15 + 14);
+
+    // Character paths
+    ctx.setLineDash([4, 4]);
+
+    // 苏晚晴 path (red)
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(30, h * 0.5);
+    ctx.lineTo(w * 0.3, h * 0.5);
+    ctx.lineTo(w * 0.5, h * 0.55);
+    ctx.lineTo(w * 0.6, h * 0.45);
+    ctx.lineTo(w - 36, h * 0.5);
+    ctx.stroke();
+
+    // Characters
+    ctx.setLineDash([]);
+
+    // 苏晚晴 start
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(30, h * 0.5, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 8px Noto Sans SC';
+    ctx.fillText('晚', 26, h * 0.5 + 3);
+
+    // 苏晚晴 end
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(w - 36, h * 0.5, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.fillText('晚', w - 40, h * 0.5 + 3);
+
+    // 保安
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.38, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.fillText('保', w * 0.5 - 4, h * 0.38 + 3);
+
+    // 苏雅琪
+    ctx.fillStyle = '#a855f7';
+    ctx.beginPath();
+    ctx.arc(w * 0.45, h * 0.7, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.fillText('雅', w * 0.45 - 4, h * 0.7 + 3);
+
+    // Legend
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px Noto Sans SC';
+    ctx.fillText('S02 动线：大堂对峙', 24, h - 8);
+}
+
+// ═══════════════ Storyboard Sketches ═══════════════
+function showStoryboardPreview() {
+    const el = document.getElementById('storyboardPreview');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el.style.display === 'block') drawSketches();
+}
+
+function drawSketches() {
+    // S01-01: Extreme Long Shot - Building
+    drawSketch('sketchCanvas1', (ctx, w, h) => {
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(w * 0.15, h * 0.1, w * 0.7, h * 0.6);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(w * 0.3, h * 0.85, w * 0.4, h * 0.02);
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.82, 4, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // S01-02: Medium Shot - Back view
+    drawSketch('sketchCanvas2', (ctx, w, h) => {
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(0, 0, w, h);
+        // Shoulders and head silhouette
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.45, w * 0.35, h * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(w * 0.5, h * 0.25, w * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        // Hair
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.2, w * 0.17, h * 0.12, 0, Math.PI, Math.PI * 2);
+        ctx.fill();
+        // Arrow
+        ctx.strokeStyle = '#667eea';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(w * 0.5, h * 0.85);
+        ctx.lineTo(w * 0.5, h * 0.65);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    });
+
+    // S01-03: Close-up - Face
+    drawSketch('sketchCanvas3', (ctx, w, h) => {
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, 0, w, h);
+        // Face outline
+        ctx.fillStyle = '#d4a574';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.45, w * 0.28, h * 0.32, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.4, h * 0.38, 4, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(w * 0.6, h * 0.38, 4, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Determined mouth
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(w * 0.38, h * 0.55);
+        ctx.lineTo(w * 0.62, h * 0.55);
+        ctx.stroke();
+        // Hair
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.18, w * 0.3, h * 0.15, 0, Math.PI, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // S03-02: Extreme Close-up - Eye
+    drawSketch('sketchCanvas4', (ctx, w, h) => {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h);
+        // Eye area
+        ctx.fillStyle = '#d4a574';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.5, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Eye white
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.48, w * 0.22, h * 0.08, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Iris
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(w * 0.5, h * 0.48, w * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+        // Pupil
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(w * 0.5, h * 0.48, w * 0.04, 0, Math.PI * 2);
+        ctx.fill();
+        // Reflection
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(w * 0.55, h * 0.45, 2, 0, Math.PI * 2);
+        ctx.fill();
+        // Eyelid
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.4, w * 0.35, h * 0.12, 0, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+        // Cold smirk hint
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(w * 0.3, h * 0.8);
+        ctx.quadraticCurveTo(w * 0.5, h * 0.85, w * 0.7, h * 0.78);
+        ctx.stroke();
+    });
+}
+
+function drawSketch(canvasId, drawFn) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    drawFn(ctx, canvas.width, canvas.height);
+}
+
+// ═══════════════ Evaluation Chart ═══════════════
+function initEvalChart() {
+    const container = document.getElementById('evalChart');
+    if (!container || container.dataset.init) return;
+    container.dataset.init = 'true';
+
+    const chart = echarts.init(container);
+    chart.setOption({
+        tooltip: { trigger: 'axis' },
+        radar: {
+            indicator: [
+                { name: '爽度值', max: 10 },
+                { name: 'Hook强度', max: 5 },
+                { name: '角色一致性', max: 100 },
+                { name: '对白自然度', max: 10 },
+                { name: '视觉可行性', max: 10 },
+            ],
+            radius: '65%',
+            name: { textStyle: { fontSize: 10, color: '#64748b' } },
+        },
+        series: [{
+            type: 'radar',
+            data: [{
+                value: [7.2, 4.1, 92, 7.8, 8.5],
+                name: 'EP001',
+                areaStyle: { opacity: 0.15 },
+                lineStyle: { color: '#667eea', width: 2 },
+                itemStyle: { color: '#667eea' },
+            }],
+        }],
+    });
+}
+
+// ═══════════════ Emotion Mini Chart ═══════════════
+function initEmotionMini() {
+    const container = document.getElementById('emotionMiniChart');
+    if (!container) return;
+    const chart = echarts.init(container);
+    chart.setOption({
+        grid: { left: 30, right: 10, top: 5, bottom: 15 },
+        xAxis: { type: 'category', data: ['EP1', 'EP3', 'EP5', 'EP8', 'EP10'], axisLabel: { fontSize: 9 } },
+        yAxis: { type: 'value', max: 10, axisLabel: { fontSize: 9 } },
+        series: [
+            {
+                type: 'line', data: [2.2, 4.8, 7.4, 8.5, 8.8], smooth: true,
+                areaStyle: { opacity: 0.15 },
+                lineStyle: { color: '#ef4444', width: 2 },
+                itemStyle: { color: '#ef4444' },
+            },
+            {
+                type: 'line', data: [3.1, 4.6, 6.9, 8.1, 8.3], smooth: true,
+                lineStyle: { color: '#3b82f6', width: 1, type: 'dashed' },
+                itemStyle: { color: '#3b82f6' },
+            },
+        ],
+    });
+}
+
+// ═══════════════ Init ═══════════════
+window.addEventListener('load', () => {
+    drawStoryboard();
+    initEmotionMini();
+});
+</script>
+</body>
+</html>
