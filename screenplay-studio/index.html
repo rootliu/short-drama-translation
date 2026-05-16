@@ -1208,6 +1208,36 @@
                 </div>
             </div>
 
+            <!-- Video Generation -->
+            <div class="tool-card">
+                <h5>🎥 视频生成</h5>
+                <p>调用AI视频模型生成分镜Demo</p>
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                    <button class="quick-action-btn" onclick="generateVideoDemo('seeddance')" style="font-size:10px;">🌱 Seedance生成</button>
+                    <button class="quick-action-btn" onclick="generateVideoDemo('happyhorse')" style="font-size:10px;">🐴 HappyHorse生成</button>
+                </div>
+                <div id="videoGenStatus" style="display:none;margin-top:8px;">
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px;">
+                        <div id="videoGenProgress" style="font-size:11px;color:#1e40af;"></div>
+                        <div style="height:4px;background:#dbeafe;border-radius:2px;margin-top:4px;overflow:hidden;">
+                            <div id="videoGenBar" style="height:100%;width:0%;background:#3b82f6;border-radius:2px;transition:width 0.3s;"></div>
+                        </div>
+                        <div id="videoGenTime" style="font-size:10px;color:#60a5fa;margin-top:2px;"></div>
+                    </div>
+                </div>
+                <div id="videoResult" style="display:none;margin-top:8px;">
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px;">
+                        <div style="font-size:11px;color:#166534;font-weight:600;">✓ 视频生成完成</div>
+                        <div id="videoResultText" style="font-size:10px;color:#15803d;margin-top:2px;"></div>
+                        <div style="display:flex;gap:4px;margin-top:6px;">
+                            <button class="quick-action-btn" style="font-size:10px;">📥 下载视频</button>
+                            <button class="quick-action-btn" style="font-size:10px;">🔄 重新生成</button>
+                            <button class="quick-action-btn" style="font-size:10px;">📤 分享到飞书</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Export -->
             <div class="tool-card">
                 <h5>📤 导出</h5>
@@ -1704,6 +1734,56 @@ function initEvalChart() {
             }],
         }],
     });
+}
+
+// ═══════════════ Video Generation ═══════════════
+function generateVideoDemo(model) {
+    const statusEl = document.getElementById('videoGenStatus');
+    const progressEl = document.getElementById('videoGenProgress');
+    const barEl = document.getElementById('videoGenBar');
+    const timeEl = document.getElementById('videoGenTime');
+    const resultEl = document.getElementById('videoResult');
+
+    statusEl.style.display = 'block';
+    resultEl.style.display = 'none';
+
+    const modelName = model === 'seeddance' ? 'Seedance' : 'HappyHorse';
+    const steps = model === 'seeddance' ? [
+        { text: 'Seedance: 解析分镜剧本 → 提取场景、角色、动作描述', pct: 10 },
+        { text: 'Seedance: 生成人物一致性参考图 (Reference Images)', pct: 25 },
+        { text: 'Seedance: 生成关键帧 (Keyframe Generation)', pct: 40 },
+        { text: 'Seedance: 视频帧插值 & 运动扩展 (Motion Interpolation)', pct: 65 },
+        { text: 'Seedance: 添加字幕 & 音效层 (Subtitle & Audio Overlay)', pct: 85 },
+        { text: 'Seedance: 后处理 & 质量检查', pct: 95 },
+    ] : [
+        { text: 'HappyHorse: 分镜脚本 → 结构化提示词', pct: 15 },
+        { text: 'HappyHorse: 调用Character-Consistency模型锁定角色面部', pct: 30 },
+        { text: 'HappyHorse: 分批次生成视频片段 (Batch Generation)', pct: 50 },
+        { text: 'HappyHorse: 片段拼接 & 转场处理 (Transition Effects)', pct: 75 },
+        { text: 'HappyHorse: 添加旁白 & BGM & 字幕', pct: 90 },
+        { text: 'HappyHorse: 最终渲染 & QA', pct: 95 },
+    ];
+
+    let step = 0;
+    let progress = 0;
+
+    const interval = setInterval(() => {
+        if (step >= steps.length) {
+            clearInterval(interval);
+            statusEl.style.display = 'none';
+            resultEl.style.display = 'block';
+            document.getElementById('videoResultText').textContent =
+                `EP001「命运的转折」Demo视频已生成（${modelName}）· 3个场景 · 8个镜头 · 时长 1:25 · MP4 1080x1920`;
+            return;
+        }
+
+        const s = steps[step];
+        progress = s.pct;
+        progressEl.textContent = s.text;
+        barEl.style.width = progress + '%';
+        timeEl.textContent = `预计剩余 ${Math.round((100 - progress) / 15 * (Math.random() * 5 + 10))} 秒`;
+        step++;
+    }, 800 + Math.random() * 600);
 }
 
 // ═══════════════ Emotion Mini Chart ═══════════════
